@@ -1,6 +1,17 @@
 # Perseus Citation Linker - Go Version
 
-A comprehensive Go implementation of the Perseus citation processing pipeline for extracting and resolving citations from XML documents to CTS URNs (Canonical Text Services Uniform Resource Names).
+A comprehensive Go implementation of the Perseus citation processing pipeline
+for extracting and resolving citations from XML documents to CTS URNs
+(Canonical Text Services Uniform Resource Names).
+This was mainly developed for working with commentaries on ancient works.
+
+An earlier Python version of the citation resolution logic is in place
+as part of the data processing pipeline (<https://github.com/scaife-viewer/atlas-data-prep>)
+for the Atlas backend for the Perseus Digital Library.
+Part of the motivation here is to make it straightforward to collect citation instances
+(mostly) correct resolutions for citations
+that are not straightforwardly machine-actionable,
+with an eye to automating citation tagging in XML documents at some point in the future.
 
 ## Features
 
@@ -17,11 +28,13 @@ A comprehensive Go implementation of the Perseus citation processing pipeline fo
 ## Installation & Usage
 
 ### Building
+
 ```bash
 go build -o citation-processor cmd/citation-processor/main.go
 ```
 
 ### Running
+
 ```bash
 # Process XML files with comprehensive <cit> tag extraction (recommended)
 go run cmd/citation-processor/main.go -input testdata/xml/ -cit
@@ -34,6 +47,7 @@ go run cmd/citation-processor/main.go -input testdata/xml/ -cit -output results/
 ```
 
 ### Command Line Options
+
 - `-input <directory>`: Directory containing XML files to process (default: current directory)
 - `-output <directory>`: Output directory for results (default: "cit_data")
 - `-cit`: Use comprehensive <cit> tag extraction mode (default: <bibl> tag only)
@@ -41,12 +55,14 @@ go run cmd/citation-processor/main.go -input testdata/xml/ -cit -output results/
 ## Output
 
 The application generates:
+
 - `resolved.jsonl` - Successfully resolved citations with CTS URNs
 - `unresolved.jsonl` - Citations that could not be resolved (typically 0 with current implementation)
 
 ## Citation Format
 
 Each resolved citation entry contains:
+
 ```json
 {
   "n_attrib": "Soph. OT 151",
@@ -62,27 +78,19 @@ Each resolved citation entry contains:
 
 ## Supported Authors & Works
 
-The application includes comprehensive mappings for ancient Greek and Latin literature:
+The application includes comprehensive mappings for ancient Greek and Latin literature.
+It also resolves citations to some English authors (mainly Shakespeare)
+that are frequently cited in commentaries on ancient texts.
 
-### Greek Authors
-- **Major Tragedians**: Aeschylus, Sophocles, Euripides
-- **Epic Poets**: Homer, Hesiod, Apollonius Rhodius
-- **Historians**: Herodotus, Thucydides, Xenophon, Diodorus Siculus
-- **Philosophers**: Plato, Aristotle, Plutarch
-- **Orators**: Demosthenes, Aeschines, Dinarchus
-- **Others**: Aristophanes, Pindar, Apollodorus, Aelian, Greek Anthology
-
-### Latin Authors
-- **Epic/Poetry**: Vergil, Ovid, Horace, Catullus, Juvenal, Statius
-- **Prose**: Caesar, Cicero, Livy, Tacitus, Sallust
-- **Philosophy/Letters**: Seneca (Senior & Junior with automatic disambiguation)
-- **Natural History**: Pliny (Senior & Junior with automatic disambiguation)
-- **Comedy**: Plautus, Terence
-- **Biography**: Suetonius
-- **Others**: Lucretius, Propertius, Tibullus, Valerius Flaccus
+Note that I've by and large added authors to catch everything cited
+in Campbell's Sophocles grammar and Jebb's Sophocles commentaries.
+Hence, for instance, coverage of Latin works and authors is a bit spottier
+than Greek works and authors.
 
 ### Dynamic Author Disambiguation
+
 The system automatically resolves ambiguous authors based on work titles:
+
 - `plin. nh 15.30` → Pliny Senior (Naturalis Historia)
 - `plin. ep. 1.1` → Pliny Junior (Epistulae)
 - `seneca oed. 812` → Seneca Junior (Oedipus)
@@ -91,17 +99,20 @@ The system automatically resolves ambiguous authors based on work titles:
 ## Architecture
 
 ### Core Components
+
 - `cmd/citation-processor/main.go` - Main application with citation extraction and processing logic
 - `pkg/resolver/resolver.go` - URN resolution, author/work mapping, and reference parsing
 - `pkg/loader/data_loader.go` - Data loading, work abbreviation generation, and Latin author disambiguation
 
 ### Data Files
+
 - `data/greek_data.json` - Greek author abbreviations, work mappings, and URN templates
 - `data/latin_data.json` - Latin author abbreviations, work mappings, and URN templates
 - `data/other_data.json` - Additional authors (Shakespeare, etc.)
 - `data/schol_data.json` - Scholia and commentary mappings
 
 ### Test Suite
+
 - `cmd/citation-processor/main_test.go` - Comprehensive test suite including:
   - End-to-end citation processing tests
   - Individual resolver function tests
@@ -109,15 +120,21 @@ The system automatically resolves ambiguous authors based on work titles:
   - Performance benchmarks
 
 ### Test Data
+
 - `testdata/xml/` - Sample XML files for testing
 - `testdata/expected/` - Expected output files for test validation
 
 ## Performance
 
 Current performance on test datasets:
+
 - **Campbell XML**: 2,004 citations resolved (100%)
 - **VIAF XML**: 2,924 citations resolved (100%)
 - **Total**: 4,928 citations with 0 unresolved
+
+Since these are both works on Sophocles and I focussed on mapping citations
+found in works on Sophocles, the coverage will be less complete with other
+texts.
 
 ## Running Tests
 
@@ -132,32 +149,24 @@ go test ./cmd/citation-processor/ -run TestCitationProcessing
 go test ./cmd/citation-processor/ -bench=.
 ```
 
-## Contributing
-
-To add support for new authors or works:
-
-1. **Greek authors**: Add entries to `data/greek_data.json`
-2. **Latin authors**: Add entries to `data/latin_data.json`
-3. **Work abbreviations**: The system automatically generates common abbreviation patterns
-4. **Custom disambiguation**: Implement logic similar to the Pliny/Seneca disambiguation in `pkg/loader/data_loader.go`
-
-## Technical Details
+## Other Details
 
 ### Citation Extraction Modes
 
-**Comprehensive Mode (`-cit` flag)**:
+**Cit Tag Mode (`-cit` flag)**:
+
 - Extracts citations from any XML structure containing citation patterns
 - Finds `<cit>`, `<bibl>`, and `<ref>` elements throughout the document
-- Works with any XML document structure
-- Recommended for maximum citation coverage
 
-**Traditional Mode (default)**:
-- Extracts only standalone `<bibl>` tags
-- More conservative extraction approach
+**Bibl Tag Mode (default)**:
+
+- Extracts standalone `<bibl>` tags
+- More broadly usable, since doesn't require `<cit>` tags
 
 ### Work Abbreviation Generation
 
 The system automatically generates multiple abbreviation variants:
+
 - First letters: "n", "n.", "na", "nat.", etc.
 - Initials: "nh" for "naturalis historia"
 - Partial words: "natur", "natura", etc.
@@ -166,10 +175,34 @@ The system automatically generates multiple abbreviation variants:
 ### URN Format
 
 Generated URNs follow CTS (Canonical Text Services) standards:
+
 ```
 urn:cts:{literature}:{author}.{work}.{edition}:{passage}
 ```
 
 Examples:
+
 - `urn:cts:greekLit:tlg0011.tlg004.perseus-grc2:151`
 - `urn:cts:latinLit:phi0978.phi001.perseus-lat2:15.30`
+
+### Quirks
+
+There are of course ambiguous citations that can't be
+addressed through the resolution logic here.
+For instance, _Arist. Met._ could refer to Aristotle's _Metaphysics_
+or _Meteorology_. One way of handling this is simply to add
+one mapping to the relevant JSON file in the `data` directory.
+I've done this in several cases, especially where it strikes me
+that an ambiguous abbreviation is more likely to refer
+to one thing over another (in this case, "Met." is explicitly mapped to "Metaphysics").
+
+Where this is not the case and the resolution logic can resolve the citation, e.g.
+by expanding "Met." to "Metaphysics" or "Meteorology", the application's behaviour
+is not wholly predictable, and may change from one run to another.
+This is ultimately a consequence of Go's nondeterministic hash map implementation.
+
+## TODO
+
+- [ ] Add option to output distinct jsonl files for each xml file
+- [ ] Keep track of ambiguous citation resolutions in separate output file or log
+
