@@ -1,0 +1,20 @@
+{
+  "SCHOL_AUTH_ABB": {
+    "bekk.": "bekker",
+    "curt.": "curtius"
+  },
+  "SCHOL_WORK_URNS": {
+    "bekker": {
+      "anecd.": "anecdota"
+    },
+    "curtius": {
+      "verb.": "greek_verb",
+      "etym.": "greek_etym"
+    }
+  },
+  "SCHOL_AUTH_URNS": {
+    "bekker": "urn:cts:greekSchol:bekker",
+    "curtius": "urn:cts:greekSchol:curtius"
+  }
+}
+
