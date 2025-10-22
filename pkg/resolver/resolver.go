@@ -25,6 +25,19 @@ func NewURNResolver() (*URNResolver, error) {
 	}, nil
 }
 
+// use this function to load data from specified path, rather than default
+// from loader.findDataDir
+func NewURNResolverFromDir(dataDir string) (*URNResolver, error) {
+	data, err := loader.LoadComprehensiveDataDir(dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load citation data from %s: %w", dataDir, err)
+	}
+	resolver := &URNResolver{
+		Data: data,
+	}
+	return resolver, nil
+}
+
 func (ur *URNResolver) GetRef(nAttr, biblContent string) string {
 	// This implements the Python get_ref logic exactly
 	if nAttr != "" {
@@ -475,8 +488,17 @@ func (ur *URNResolver) handleSingleWorkAuthor(author, passage, originalRef strin
 		return ""
 	}
 
-	// Default work is tlg001
-	workURN := "tlg001"
+	// Determine work prefix based on literature type
+	var workURN string
+	if strings.Contains(authURN, "greekLit") || strings.Contains(authURN, "greekSchol") {
+		workURN = "tlg001"
+	} else if strings.Contains(authURN, "latinLit") {
+		workURN = "phi001"
+	} else if strings.Contains(authURN, "englishLit") {
+		workURN = "eng001"
+	} else {
+		workURN = "tlg001" // default to Greek
+	}
 	suffix := ur.determineLiteratureSuffix(authURN)
 
 	// Extract numeric parts for location
@@ -508,8 +530,16 @@ func (ur *URNResolver) getWorkURN(author, work string) string {
 			return ur.constructNumericWorkURN(author, work)
 		}
 
-		// Final fallback: use primary work tlg001
-		return "tlg001"
+		// Final fallback: use primary work based on literature type
+		allAuthURNs := ur.Data.GetAllAuthURNs()
+		if authURN, exists := allAuthURNs[author]; exists {
+			if strings.Contains(authURN, "latinLit") {
+				return "phi001"
+			} else if strings.Contains(authURN, "englishLit") {
+				return "eng001"
+			}
+		}
+		return "tlg001" // default to Greek
 	}
 
 	work = strings.ToLower(work)
@@ -567,9 +597,17 @@ func (ur *URNResolver) getWorkURN(author, work string) string {
 		return ur.constructNumericWorkURN(author, work)
 	}
 
-	// Final fallback: use primary work tlg001
+	// Final fallback: use primary work based on literature type
 	// This handles cases where work is assumed to be author's main work
-	return "tlg001"
+	allAuthURNs := ur.Data.GetAllAuthURNs()
+	if authURN, exists := allAuthURNs[author]; exists {
+		if strings.Contains(authURN, "latinLit") {
+			return "phi001"
+		} else if strings.Contains(authURN, "englishLit") {
+			return "eng001"
+		}
+	}
+	return "tlg001" // default to Greek
 }
 
 // isNumeric checks if a string contains only digits

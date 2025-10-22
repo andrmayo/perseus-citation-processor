@@ -53,6 +53,66 @@ go run cmd/citation-processor/main.go -input testdata/xml/ -cit -output results/
 - `-output <directory>`: Output directory for results (default: "cit_data")
 - `-cit`: Use comprehensive <cit> tag extraction mode (default: <bibl> tag only)
 
+## Data Directory Configuration
+
+### Automatic Data Directory Discovery
+
+The application automatically searches for the `data/` directory containing citation mapping files (JSON files with author/work mappings). The search follows this order:
+
+1. Current working directory (`./data`)
+2. Parent directory (`../data`)
+3. Up to 3 levels up (`../../data`, `../../../data`)
+4. Falls back to `data` if not found (will fail if data files are missing)
+
+This allows the application to work correctly whether you run it from:
+- The project root: `go run cmd/citation-processor/main.go`
+- The cmd directory: `go run ./citation-processor/main.go`
+- After installing the binary elsewhere (as long as data is accessible)
+
+### Using as a Library with Custom Data Directories
+
+If you're importing this package into your own Go project, you can specify a custom data directory:
+
+```go
+package main
+
+import (
+    "log"
+    "github.com/yourname/perseus-citation-processor/pkg/loader"
+    "github.com/yourname/perseus-citation-processor/pkg/resolver"
+)
+
+func main() {
+    // Option 1: Load data from custom directory
+    data, err := loader.LoadComprehensiveDataDir("/opt/myapp/citation-data")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Create resolver with loaded data
+    resolver := &resolver.URNResolver{Data: data}
+    urn := resolver.GetURN("soph. ot 151", "", "")
+
+    // Option 2: Use convenience constructor
+    resolver2, err := resolver.NewURNResolverFromDir("/opt/myapp/citation-data")
+    if err != nil {
+        log.Fatal(err)
+    }
+    urn2 := resolver2.GetURN("pliny nat. hist. 15.30", "", "")
+}
+```
+
+### Data Files Required
+
+Your custom data directory must contain these files:
+
+- `greek_data.json` - Greek author/work mappings
+- `latin_data.json` - Latin author/work mappings
+- `schol_data.json` - Scholia mappings
+- `other_data.json` - Other authors (e.g., Shakespeare)
+
+You can use the files from this repository's `data/` directory or create your own following the same JSON structure.
+
 ## Output
 
 The application generates:

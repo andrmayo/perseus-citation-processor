@@ -77,60 +77,52 @@ func findDataDir() string {
 	return "data"
 }
 
-// LoadComprehensiveData loads all citation data from JSON files
-func LoadComprehensiveData() (*ComprehensiveData, error) {
+// function for loading configuration for data dir
+func LoadComprehensiveDataDir(dataDir string) (*ComprehensiveData, error) {
 	data := &ComprehensiveData{}
-	dataDir := findDataDir()
-
-	// Load Greek data
+	// load Greek data
 	greekBytes, err := os.ReadFile(filepath.Join(dataDir, "greek_data.json"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read data/greek_data.json: %w", err)
+		return nil, fmt.Errorf("failed to read %s/greek_data.json: %w", dataDir, err)
 	}
 	if err := json.Unmarshal(greekBytes, &data.Greek); err != nil {
-		return nil, fmt.Errorf("failed to parse data/greek_data.json: %w", err)
+		return nil, fmt.Errorf("failed to parse greek_data.json: %w", err)
 	}
 
-	// Load Latin data
+	// load Latin data
 	latinBytes, err := os.ReadFile(filepath.Join(dataDir, "latin_data.json"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read data/latin_data.json: %w", err)
+		return nil, fmt.Errorf("failed to read %s/latin_data.json: %w", dataDir, err)
 	}
 	if err := json.Unmarshal(latinBytes, &data.Latin); err != nil {
-		return nil, fmt.Errorf("failed to parse data/latin_data.json: %w", err)
+		return nil, fmt.Errorf("failed to parse latin_data.json: %w", err)
 	}
 
-	// Load Schol data
+	// load Schol data
 	scholBytes, err := os.ReadFile(filepath.Join(dataDir, "schol_data.json"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read data/schol_data.json: %w", err)
+		return nil, fmt.Errorf("failed to read %s/schol_data.json: %w", dataDir, err)
 	}
 	if err := json.Unmarshal(scholBytes, &data.Schol); err != nil {
-		return nil, fmt.Errorf("failed to parse data/schol_data.json: %w", err)
+		return nil, fmt.Errorf("failed to parse schol_data.json: %w", err)
 	}
 
-	// Load Other data
+	// Load other data
 	otherBytes, err := os.ReadFile(filepath.Join(dataDir, "other_data.json"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read data/other_data.json: %w", err)
+		return nil, fmt.Errorf("failed to read %s/other_data.json: %w", dataDir, err)
 	}
 	if err := json.Unmarshal(otherBytes, &data.Other); err != nil {
-		return nil, fmt.Errorf("failed to parse data/other_data.json: %w", err)
+		return nil, fmt.Errorf("failed to parse other_data.json: %w", err)
 	}
 
-	// Apply title transformations to generate abbreviations
 	data.expandWorkTitles()
-
 	return data, nil
 }
 
-// functions to handle Simple vs Range WorkURNs
-func (w *WorkURN) IsSimple() bool {
-	return w.Range == nil
-}
-
-func (w *WorkURN) IsRange() bool {
-	return w.Range != nil
+func LoadComprehensiveData() (*ComprehensiveData, error) {
+	dataDir := findDataDir()
+	return LoadComprehensiveDataDir(dataDir)
 }
 
 // this handles polymorphic JSON for WorkURN

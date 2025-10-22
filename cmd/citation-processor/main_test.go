@@ -306,6 +306,132 @@ func sortCitations(citations []Citation) {
 	})
 }
 
+// TestCustomDataDir tests using a custom data directory
+// This test creates a temporary data directory, copies the required JSON files,
+// tests the custom directory functionality, and cleans up automatically
+func TestCustomDataDir(t *testing.T) {
+	// Create temporary directory for custom data files
+	tempDataDir := t.TempDir()
+
+	// Find the actual data directory to copy files from
+	var actualDataDir string
+	if _, err := os.Stat("../../data"); err == nil {
+		actualDataDir = "../../data"
+	} else if _, err := os.Stat("data"); err == nil {
+		actualDataDir = "data"
+	} else if _, err := os.Stat("../data"); err == nil {
+		actualDataDir = "../data"
+	} else {
+		t.Fatal("Could not find data directory to copy test files from")
+	}
+
+	// Copy all required JSON files to temp directory
+	requiredFiles := []string{
+		"greek_data.json",
+		"latin_data.json",
+		"schol_data.json",
+		"other_data.json",
+	}
+
+	for _, filename := range requiredFiles {
+		sourcePath := filepath.Join(actualDataDir, filename)
+		destPath := filepath.Join(tempDataDir, filename)
+
+		// Read source file
+		data, err := os.ReadFile(sourcePath)
+		if err != nil {
+			t.Fatalf("Failed to read %s: %v", sourcePath, err)
+		}
+
+		// Write to temp directory
+		err = os.WriteFile(destPath, data, 0644)
+		if err != nil {
+			t.Fatalf("Failed to write %s: %v", destPath, err)
+		}
+	}
+
+	// Test 1: LoadComprehensiveDataDir with custom directory
+	t.Run("LoadComprehensiveDataDir", func(t *testing.T) {
+		data, err := loader.LoadComprehensiveDataDir(tempDataDir)
+		if err != nil {
+			t.Fatalf("Failed to load data from custom directory: %v", err)
+		}
+
+		// Verify data was loaded correctly
+		if len(data.Greek.AuthURNs) == 0 {
+			t.Error("Greek author URNs not loaded")
+		}
+		if len(data.Latin.AuthURNs) == 0 {
+			t.Error("Latin author URNs not loaded")
+		}
+		if len(data.Schol.AuthURNs) == 0 {
+			t.Error("Schol author URNs not loaded")
+		}
+		if len(data.Other.AuthURNs) == 0 {
+			t.Error("Other author URNs not loaded")
+		}
+
+		t.Logf("Successfully loaded data from custom directory %s", tempDataDir)
+		t.Logf("  Greek authors: %d", len(data.Greek.AuthURNs))
+		t.Logf("  Latin authors: %d", len(data.Latin.AuthURNs))
+		t.Logf("  Schol authors: %d", len(data.Schol.AuthURNs))
+		t.Logf("  Other authors: %d", len(data.Other.AuthURNs))
+	})
+
+	// Test 2: NewURNResolverFromDir with custom directory
+	t.Run("NewURNResolverFromDir", func(t *testing.T) {
+		resolver, err := resolver.NewURNResolverFromDir(tempDataDir)
+		if err != nil {
+			t.Fatalf("Failed to create resolver from custom directory: %v", err)
+		}
+
+		// Test that resolver works with loaded data
+		testCases := []struct {
+			name     string
+			input    string
+			expected string
+		}{
+			{
+				name:     "Sophocles Electra",
+				input:    "soph. el. 123",
+				expected: "urn:cts:greekLit:tlg0011.tlg005.perseus-grc2:123",
+			},
+			{
+				name:     "Homer Iliad",
+				input:    "hom. il. 1.1",
+				expected: "urn:cts:greekLit:tlg0012.tlg001.perseus-grc2:1.1",
+			},
+			{
+				name:     "Pliny Senior",
+				input:    "plin. nat. hist. 15.30",
+				expected: "urn:cts:latinLit:phi0978.phi001.perseus-lat2:15.30",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				result := resolver.GetURN(tc.input, "", "test")
+				if result != tc.expected {
+					t.Errorf("Expected %s, got %s", tc.expected, result)
+				}
+			})
+		}
+
+		t.Logf("Successfully created and tested resolver with custom data directory")
+	})
+
+	// Test 3: Verify temp directory cleanup (automatic with t.TempDir())
+	t.Run("VerifyTempDirExists", func(t *testing.T) {
+		// Verify temp directory still exists during test
+		if _, err := os.Stat(tempDataDir); os.IsNotExist(err) {
+			t.Error("Temp directory was cleaned up too early")
+		}
+		t.Logf("Temp directory %s exists and will be cleaned up after test", tempDataDir)
+	})
+
+	// Note: t.TempDir() automatically cleans up the temp directory after test completes
+}
+
 // BenchmarkCitationProcessing benchmarks the citation processing performance
 func BenchmarkCitationProcessing(b *testing.B) {
 	testDataDir := findTestDataDir()
