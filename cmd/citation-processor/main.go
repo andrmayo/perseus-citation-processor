@@ -34,10 +34,10 @@ type Config struct {
 }
 
 type CitationProcessor struct {
-	Config      Config
-	Resolver    *resolver.URNResolver
-	Counter     int
-	CounterMux  sync.Mutex
+	Config     Config
+	Resolver   *resolver.URNResolver
+	Counter    int
+	CounterMux sync.Mutex
 }
 
 func NewCitationProcessor(config Config) (*CitationProcessor, error) {
@@ -55,9 +55,9 @@ func NewCitationProcessor(config Config) (*CitationProcessor, error) {
 
 func main() {
 	// Parse command line flags
-	var useCitTags = flag.Bool("cit", false, "Use <cit> tags to guide citation extraction (default: use <bibl> tags only)")
-	var inputDir = flag.String("input", ".", "Input directory containing XML files")
-	var outputDir = flag.String("output", "cit_data", "Output directory for JSONL files")
+	noCitTags := flag.Bool("nocit", false, "Use <bibl> and <quote> tags to guide citation extraction (default: use <cit> tags)")
+	inputDir := flag.String("input", ".", "Input directory containing XML files")
+	outputDir := flag.String("output", "cit_data", "Output directory for JSONL files")
 	flag.Parse()
 
 	config := Config{
@@ -65,7 +65,7 @@ func main() {
 		OutputDir:      *outputDir,
 		ResolvedFile:   "resolved.jsonl",
 		UnresolvedFile: "unresolved.jsonl",
-		UseCitTags:     *useCitTags,
+		UseCitTags:     !*noCitTags,
 	}
 
 	processor, err := NewCitationProcessor(config)
@@ -143,46 +143,6 @@ func (cp *CitationProcessor) extractBiblTags(xmlContent, filename string) []Cita
 	// Regex to find <bibl> elements
 	biblRegex := regexp.MustCompile(`<bibl[^>]*>.*?</bibl>`)
 	matches := biblRegex.FindAllStringSubmatch(xmlContent, -1)
-
-	var citations []Citation
-
-	for _, match := range matches {
-		if len(match) > 0 {
-			citation := cp.ProcessCitation(match[0], xmlContent, filename)
-			citations = append(citations, citation)
-		}
-	}
-
-	return citations
-}
-
-// extractCitationsTags extracts citations using <cit> containers with <bibl> and <quote> elements
-func (cp *CitationProcessor) extractCitationsTags(xmlContent, filename string) []Citation {
-	// Regex to find <cit> elements - match Python pattern exactly
-	// Python uses: r"<cit.+?/cit>" which matches both <cit>...</cit> and potential self-closing variants
-	citRegex := regexp.MustCompile(`(?s)<cit.+?/cit>`)
-	citMatches := citRegex.FindAllString(xmlContent, -1)
-
-	var citations []Citation
-	for _, citMatch := range citMatches {
-		citation := cp.processCitationTag(citMatch, xmlContent, filename)
-		if citation.Bibl != "" { // Only add if we found a bibl element
-			citations = append(citations, citation)
-		}
-	}
-	return citations
-}
-
-// extractStandaloneBiblTags extracts <bibl> tags that are NOT within <cit> containers
-func (cp *CitationProcessor) extractStandaloneBiblTags(xmlContent, filename string) []Citation {
-	// First, remove all <cit> containers to avoid double-counting
-	// Use same pattern as extractCitationsTags
-	citRegex := regexp.MustCompile(`(?s)<cit.+?/cit>`)
-	contentWithoutCit := citRegex.ReplaceAllString(xmlContent, "")
-
-	// Now extract <bibl> elements from the remaining content
-	biblRegex := regexp.MustCompile(`<bibl[^>]*>.*?</bibl>`)
-	matches := biblRegex.FindAllStringSubmatch(contentWithoutCit, -1)
 
 	var citations []Citation
 
@@ -488,7 +448,6 @@ func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename str
 		}
 	}
 
-
 	return allCitations
 }
 
@@ -512,13 +471,14 @@ func (cp *CitationProcessor) createCitationFromParts(nAttr, biblContent, quote, 
 	context := cp.extractContext(biblContent, xmlContent, 200)
 
 	return Citation{
-		NAttrib:   nAttr,
-		Bibl:      biblContent,
-		Ref:       ref,
-		URN:       urn,
-		Quote:     quote,
+		NAttrib:    nAttr,
+		Bibl:       biblContent,
+		Ref:        ref,
+		URN:        urn,
+		Quote:      quote,
 		XMLContext: context,
-		Filename:  filename,
-		DocCitURN: citURN,
+		Filename:   filename,
+		DocCitURN:  citURN,
 	}
 }
+

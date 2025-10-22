@@ -16,12 +16,13 @@ with an eye to automating citation tagging in XML documents at some point in the
 ## Features
 
 - **Flexible Citation Extraction**: Supports two extraction modes:
-  - `<cit>` tag mode: Comprehensive extraction from any XML structure containing citation patterns
-  - `<bibl>` tag mode: Traditional extraction focused on bibliographic references
+  - Default mode for citations in preferred TEI Epidoc format:
+    Extraction from any XML structure containing citation patterns contained within `<cit>` (the preferred TEI Epidoc format)
+  - No cit tag mode: Extraction where `<bibl>` and `<quote>` are used without being bested with `<cit>` tags
 - **Advanced Reference Resolution**: Resolves author/work abbreviations with dynamic disambiguation (e.g., Pliny Senior vs Junior)
 - **Work Abbreviation Generation**: Automatically generates multiple abbreviation variants for work titles
 - **CTS URN Generation**: Creates standardized URNs following Canonical Text Services format
-- **Complete Coverage**: Achieves 100% citation resolution on test datasets
+- **Coverage**: Achieves 100% citation resolution on test datasets (both Sophoclean), but is currently better with commentaries on Greek works over Latin works
 - **Concurrent Processing**: Efficiently handles multiple XML files
 - **Comprehensive Testing**: Full test suite with expected vs actual output validation
 
@@ -155,14 +156,14 @@ go test ./cmd/citation-processor/ -bench=.
 
 ### Citation Extraction Modes
 
-**Cit Tag Mode (`-cit` flag)**:
+**Cit Tag Mode (default)**:
 
 - Extracts citations from any XML structure containing citation patterns
-- Finds `<cit>`, `<bibl>`, and `<ref>` elements throughout the document
+- Finds `<cit>` tags enclosing `<bibl>`, and `<ref>` elements throughout the document
 
-**Bibl Tag Mode (default)**:
+**No Cit Tag Mode (--nocit)**:
 
-- Extracts standalone `<bibl>` tags
+- Extracts `<bibl>` and `<quote>` tags
 - More broadly usable, since doesn't require `<cit>` tags
 
 ### Work Abbreviation Generation
