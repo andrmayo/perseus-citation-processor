@@ -1,4 +1,4 @@
-# Perseus Citation Linker - Go Version
+# Perseus Citation Linker
 
 A comprehensive Go implementation of the Perseus citation processing pipeline
 for extracting and resolving citations from XML documents to CTS URNs
@@ -113,6 +113,8 @@ The system automatically resolves ambiguous authors based on work titles:
 
 ### Test Suite
 
+To run tests, use `go run ./cmd/citation-processor/`.
+
 - `cmd/citation-processor/main_test.go` - Comprehensive test suite including:
   - End-to-end citation processing tests
   - Individual resolver function tests
@@ -205,4 +207,3 @@ This is ultimately a consequence of Go's nondeterministic hash map implementatio
 
 - [ ] Add option to output distinct jsonl files for each xml file
 - [ ] Keep track of ambiguous citation resolutions in separate output file or log
-

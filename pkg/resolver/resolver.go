@@ -131,7 +131,7 @@ func (ur *URNResolver) GetRef(nAttr, biblContent string) string {
 	return ""
 }
 
-func (ur *URNResolver) hasRecognizedAuthor(split []string, authAbb map[string]interface{}, authors map[string]bool) bool {
+func (ur *URNResolver) hasRecognizedAuthor(split []string, authAbb map[string]any, authors map[string]bool) bool {
 	if len(split) == 0 {
 		return false
 	}
@@ -149,7 +149,7 @@ func (ur *URNResolver) hasRecognizedAuthor(split []string, authAbb map[string]in
 	return false
 }
 
-func (ur *URNResolver) hasRecognizedWork(ref string, authAbb map[string]interface{}, authors map[string]bool) bool {
+func (ur *URNResolver) hasRecognizedWork(ref string, authAbb map[string]any, authors map[string]bool) bool {
 	split := strings.Fields(ref)
 	if len(split) < 2 {
 		return false
@@ -503,25 +503,25 @@ func (ur *URNResolver) getWorkURN(author, work string) string {
 		// No work mappings for this author - apply fallback strategies
 		work = strings.ToLower(work)
 
-		// Handle numeric work IDs (from Python logic lines 760-771)
+		// Handle numeric work IDs
 		if ur.isNumeric(work) {
 			return ur.constructNumericWorkURN(author, work)
 		}
 
-		// Final fallback: use primary work tlg001 (from Python logic lines 780-787)
+		// Final fallback: use primary work tlg001
 		return "tlg001"
 	}
 
 	work = strings.ToLower(work)
 
 	// First priority: exact match
-	if urn, exists := authorWorks[work]; exists {
-		if str, ok := urn.(string); ok {
-			return str
+	if workURN, exists := authorWorks[work]; exists {
+		// if workURN is not the string zero value, the workURN is a simple string
+		if workURN.Simple != "" {
+			return workURN.Simple
 		}
-		// Handle tuple cases (like Demosthenes orations)
-		if slice, ok := urn.([]interface{}); ok && len(slice) >= 3 {
-			return ur.handleWorkRange(work, slice)
+		if workURN.Range != nil {
+			return ur.handleWorkRange(work, workURN.Range)
 		}
 	}
 
@@ -529,25 +529,24 @@ func (ur *URNResolver) getWorkURN(author, work string) string {
 	var exactMatches []string
 	var abbreviationMatches []string
 
-	for title := range authorWorks {
+	// note that iterating through key-value pairs in maps when resolving URNS
+	// introduces non-deterministic behaviour
+	for title, workURN := range authorWorks {
 		// Check if this title exactly matches the work
 		if title == work {
-			if urn, exists := authorWorks[title]; exists {
-				if str, ok := urn.(string); ok {
-					exactMatches = append(exactMatches, str)
-				}
+			// check if this title exactly matches the work
+			if workURN.Simple != "" {
+				exactMatches = append(exactMatches, workURN.Simple)
 			}
 		} else {
-			// Check generated abbreviations
+			// check generated abbreviations
 			abbrevs := loader.GenerateWorkAbbreviations(title)
 			for _, abbrev := range abbrevs {
 				if abbrev == work {
-					if urn, exists := authorWorks[title]; exists {
-						if str, ok := urn.(string); ok {
-							abbreviationMatches = append(abbreviationMatches, str)
-						}
+					if workURN.Simple != "" {
+						abbreviationMatches = append(abbreviationMatches, workURN.Simple)
 					}
-					break // Only add once per title
+					break
 				}
 			}
 		}
@@ -563,12 +562,12 @@ func (ur *URNResolver) getWorkURN(author, work string) string {
 		return abbreviationMatches[0]
 	}
 
-	// Handle numeric work IDs (from Python logic lines 760-771)
+	// Handle numeric work IDs
 	if ur.isNumeric(work) {
 		return ur.constructNumericWorkURN(author, work)
 	}
 
-	// Final fallback: use primary work tlg001 (from Python logic lines 780-787)
+	// Final fallback: use primary work tlg001
 	// This handles cases where work is assumed to be author's main work
 	return "tlg001"
 }
@@ -611,21 +610,13 @@ func (ur *URNResolver) constructNumericWorkURN(author, work string) string {
 	}
 }
 
-func (ur *URNResolver) handleWorkRange(work string, tuple []interface{}) string {
-	if len(tuple) < 3 {
-		return ""
+func (ur *URNResolver) handleWorkRange(work string, wr *loader.WorkRange) string {
+	if wr == nil {
+		panic("resolver.go: handleWorkRange should not be called with nil for wr")
 	}
-
-	prefix, ok1 := tuple[0].(string)
-	startFloat, ok2 := tuple[1].(float64)
-	endFloat, ok3 := tuple[2].(float64)
-
-	if !ok1 || !ok2 || !ok3 {
-		return ""
-	}
-
-	start := int(startFloat)
-	end := int(endFloat)
+	prefix := wr.Prefix
+	start := wr.Start
+	end := wr.End
 
 	// Extract number from work
 	re := regexp.MustCompile(`\d+`)
@@ -646,7 +637,7 @@ func (ur *URNResolver) looksLikeBookReference(work string) bool {
 
 	// Roman numerals (common for book references in ancient texts)
 	romanNumerals := []string{"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x",
-							 "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"}
+		"xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"}
 
 	for _, roman := range romanNumerals {
 		if work == roman || work == roman+"." {
@@ -668,7 +659,7 @@ func (ur *URNResolver) looksLikeRomanNumeral(text string) bool {
 
 	// Roman numerals (common for book references in ancient texts)
 	romanNumerals := []string{"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x",
-							 "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"}
+		"xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"}
 	for _, roman := range romanNumerals {
 		if text == roman {
 			return true

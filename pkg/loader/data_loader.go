@@ -9,39 +9,53 @@ import (
 	"strings"
 )
 
-// Data structures matching the Python dictionaries
-type GreekData struct {
-	AuthAbb         map[string]string                    `json:"GREEK_AUTH_ABB"`
-	WorkURNs        map[string]map[string]interface{}    `json:"GREEK_WORK_URNS"`
-	AuthURNs        map[string]string                    `json:"GREEK_AUTH_URNS"`
-	SingleWorkAuthors []string                           `json:"GREEK_SINGLE_WORK_AUTHORS"`
+type WorkURN struct {
+	Simple string // for case where a work corresponds to one alphanumeric URN
+	// case where work corresponds to a range of URNs, e.g. Dem. or. for the range of orations of Demosthanes:
+	Range *WorkRange // only one of Simple and Range is relevant in any given case
 }
 
+type WorkRange struct {
+	Prefix string // frequently tlg or phi for Greek and Latin respectively
+	Start  int
+	End    int
+}
+
+// Data structures matching the Python dictionaries in atlas_data_prep code
+type GreekData struct {
+	AuthAbb           map[string]string             `json:"GREEK_AUTH_ABB"`
+	WorkURNs          map[string]map[string]WorkURN `json:"GREEK_WORK_URNS"`
+	AuthURNs          map[string]string             `json:"GREEK_AUTH_URNS"`
+	SingleWorkAuthors []string                      `json:"GREEK_SINGLE_WORK_AUTHORS"`
+}
+
+// note that AuthAbb maps to an interface rather than a string in order to map
+// to a function to handle authors like Pliny and Seneca Elder vs. Younger.
 type LatinData struct {
-	AuthAbb         map[string]interface{}               `json:"LATIN_AUTH_ABB"`
-	WorkURNs        map[string]map[string]interface{}    `json:"LATIN_WORK_URNS"`
-	AuthURNs        map[string]string                    `json:"LATIN_AUTH_URNS"`
-	SingleWorkAuthors []string                           `json:"LATIN_SINGLE_WORK_AUTHORS"`
+	AuthAbb           map[string]any                `json:"LATIN_AUTH_ABB"`
+	WorkURNs          map[string]map[string]WorkURN `json:"LATIN_WORK_URNS"`
+	AuthURNs          map[string]string             `json:"LATIN_AUTH_URNS"`
+	SingleWorkAuthors []string                      `json:"LATIN_SINGLE_WORK_AUTHORS"`
 }
 
 type ScholData struct {
-	AuthAbb         map[string]string                    `json:"SCHOL_AUTH_ABB"`
-	WorkURNs        map[string]map[string]interface{}    `json:"SCHOL_WORK_URNS"`
-	AuthURNs        map[string]string                    `json:"SCHOL_AUTH_URNS"`
+	AuthAbb  map[string]string             `json:"SCHOL_AUTH_ABB"`
+	WorkURNs map[string]map[string]WorkURN `json:"SCHOL_WORK_URNS"`
+	AuthURNs map[string]string             `json:"SCHOL_AUTH_URNS"`
 }
 
 type OtherData struct {
-	AuthAbb         map[string]string                    `json:"OTHER_AUTH_ABB"`
-	WorkURNs        map[string]map[string]interface{}    `json:"OTHER_WORK_URNS"`
-	AuthURNs        map[string]string                    `json:"OTHER_AUTH_URNS"`
+	AuthAbb  map[string]string             `json:"OTHER_AUTH_ABB"`
+	WorkURNs map[string]map[string]WorkURN `json:"OTHER_WORK_URNS"`
+	AuthURNs map[string]string             `json:"OTHER_AUTH_URNS"`
 }
 
 // ComprehensiveData holds all citation data
 type ComprehensiveData struct {
-	Greek  GreekData
-	Latin  LatinData
-	Schol  ScholData
-	Other  OtherData
+	Greek GreekData
+	Latin LatinData
+	Schol ScholData
+	Other OtherData
 }
 
 // findDataDir attempts to find the data directory relative to the current working directory
@@ -110,11 +124,65 @@ func LoadComprehensiveData() (*ComprehensiveData, error) {
 	return data, nil
 }
 
+// functions to handle Simple vs Range WorkURNs
+func (w *WorkURN) IsSimple() bool {
+	return w.Range == nil
+}
+
+func (w *WorkURN) IsRange() bool {
+	return w.Range != nil
+}
+
+// this handles polymorphic JSON for WorkURN
+func (w *WorkURN) UnmarshalJSON(data []byte) error {
+	// first try unmarshalling as simple string
+	var simple string
+	if err := json.Unmarshal(data, &simple); err == nil {
+		w.Simple = simple
+		w.Range = nil
+		return nil
+	}
+
+	// now try to unmarshall as an array in format [prefix, start, end]
+	var arr []any
+	if err := json.Unmarshal(data, &arr); err != nil {
+		return fmt.Errorf("WorkURN must be either a string or array: %w", err)
+	}
+
+	if len(arr) < 3 {
+		return fmt.Errorf("WorkURN array must have at least 3 elements in format [prefix, start, end], got %d", len(arr))
+	}
+
+	// now WorkURN from JSON known to be in range format
+	prefix, ok := arr[0].(string)
+	if !ok {
+		return fmt.Errorf("WorkURN array[0] must be a string, got %T", arr[0])
+	}
+
+	startFloat, ok := arr[1].(float64)
+	if !ok {
+		return fmt.Errorf("WorkURN array[1] must be a number, got %T", arr[1])
+	}
+
+	endFloat, ok := arr[2].(float64)
+	if !ok {
+		return fmt.Errorf("WorkURN array[2] must be a number, got %T", arr[2])
+	}
+
+	w.Range = &WorkRange{
+		Prefix: prefix,
+		Start:  int(startFloat),
+		End:    int(endFloat),
+	}
+
+	return nil
+}
+
 // expandWorkTitles generates additional abbreviations for work titles
 func (cd *ComprehensiveData) expandWorkTitles() {
 	// Expand Greek works
 	for author, works := range cd.Greek.WorkURNs {
-		expanded := make(map[string]interface{})
+		expanded := make(map[string]WorkURN)
 		for work, urn := range works {
 			expanded[work] = urn
 			// Add abbreviations
@@ -129,7 +197,7 @@ func (cd *ComprehensiveData) expandWorkTitles() {
 
 	// Expand Latin works
 	for author, works := range cd.Latin.WorkURNs {
-		expanded := make(map[string]interface{})
+		expanded := make(map[string]WorkURN)
 		for work, urn := range works {
 			expanded[work] = urn
 			// Add abbreviations
@@ -144,7 +212,7 @@ func (cd *ComprehensiveData) expandWorkTitles() {
 
 	// Expand Schol works
 	for author, works := range cd.Schol.WorkURNs {
-		expanded := make(map[string]interface{})
+		expanded := make(map[string]WorkURN)
 		for work, urn := range works {
 			expanded[work] = urn
 			// Add abbreviations
@@ -159,7 +227,7 @@ func (cd *ComprehensiveData) expandWorkTitles() {
 
 	// Expand Other works
 	for author, works := range cd.Other.WorkURNs {
-		expanded := make(map[string]interface{})
+		expanded := make(map[string]WorkURN)
 		for work, urn := range works {
 			expanded[work] = urn
 			// Add abbreviations
@@ -221,8 +289,8 @@ func (cd *ComprehensiveData) GetAllAuthAbb() map[string]interface{} {
 }
 
 // GetAllWorkURNs returns a combined map of all work URNs
-func (cd *ComprehensiveData) GetAllWorkURNs() map[string]map[string]interface{} {
-	combined := make(map[string]map[string]interface{})
+func (cd *ComprehensiveData) GetAllWorkURNs() map[string]map[string]WorkURN {
+	combined := make(map[string]map[string]WorkURN)
 
 	// Add Greek works
 	for author, works := range cd.Greek.WorkURNs {
@@ -512,7 +580,7 @@ func GenerateWorkAbbreviations(title string) []string {
 	}
 
 	// Smart suspension (simplified version of Python's linguistic rules)
-	smartSusp := generateSmartSuspension(title, true)  // skip "de"
+	smartSusp := generateSmartSuspension(title, true) // skip "de"
 	addAbbrev(smartSusp)
 
 	smartSuspNoDe := generateSmartSuspension(title, false) // don't skip "de"
