@@ -18,7 +18,7 @@ with an eye to automating citation tagging in XML documents at some point in the
 - **Flexible Citation Extraction**: Supports two extraction modes:
   - Default mode for citations in preferred TEI Epidoc format:
     Extraction from any XML structure containing citation patterns contained within `<cit>` (the preferred TEI Epidoc format)
-  - No cit tag mode: Extraction where `<bibl>` and `<quote>` are used without being bested with `<cit>` tags
+  - No cit tag mode: Extraction where `<bibl>` and `<quote>` are used without being nested within `<cit>` tags
 - **Advanced Reference Resolution**: Resolves author/work abbreviations with dynamic disambiguation (e.g., Pliny Senior vs Junior)
 - **Work Abbreviation Generation**: Automatically generates multiple abbreviation variants for work titles
 - **CTS URN Generation**: Creates standardized URNs following Canonical Text Services format
@@ -37,14 +37,14 @@ go build -o citation-processor cmd/citation-processor/main.go
 ### Running
 
 ```bash
-# Process XML files with comprehensive <cit> tag extraction (recommended)
-go run cmd/citation-processor/main.go -input testdata/xml/ -cit
-
-# Process with traditional <bibl> tag extraction only
+# Process XML files by extracting <cit> tags
 go run cmd/citation-processor/main.go -input testdata/xml/
 
+# Process XML files by looking for <bibl> tags: use when <cit> tags are absent
+go run cmd/citation-processor/main.go -nocit -input testdata/xml/
+
 # Specify custom output directory
-go run cmd/citation-processor/main.go -input testdata/xml/ -cit -output results/
+go run cmd/citation-processor/main.go -input testdata/xml/ -output results/
 ```
 
 ### Command Line Options
