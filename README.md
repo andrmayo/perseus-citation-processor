@@ -65,6 +65,7 @@ The application automatically searches for the `data/` directory containing cita
 4. Falls back to `data` if not found (will fail if data files are missing)
 
 This allows the application to work correctly whether you run it from:
+
 - The project root: `go run cmd/citation-processor/main.go`
 - The cmd directory: `go run ./citation-processor/main.go`
 - After installing the binary elsewhere (as long as data is accessible)
@@ -157,7 +158,7 @@ The system automatically resolves ambiguous authors based on work titles:
 - `seneca oed. 812` → Seneca Junior (Oedipus)
 - `seneca controv. 1.1` → Seneca Senior (Controversiae)
 
-## Architecture
+## Project Structure
 
 ### Core Components
 
@@ -165,7 +166,7 @@ The system automatically resolves ambiguous authors based on work titles:
 - `pkg/resolver/resolver.go` - URN resolution, author/work mapping, and reference parsing
 - `pkg/loader/data_loader.go` - Data loading, work abbreviation generation, and Latin author disambiguation
 
-### Data Files
+### Abbreviation Authority Files
 
 - `data/greek_data.json` - Greek author abbreviations, work mappings, and URN templates
 - `data/latin_data.json` - Latin author abbreviations, work mappings, and URN templates
