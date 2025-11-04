@@ -477,6 +477,170 @@ func TestCustomDataDir(t *testing.T) {
 	// Note: t.TempDir() automatically cleans up the temp directory after test completes
 }
 
+// TestMultiDocumentProcessing tests processing multiple documents and verifies
+// that document IDs increment correctly and document mappings are created
+func TestMultiDocumentProcessing(t *testing.T) {
+	testDataDir := findTestDataDir()
+
+	// Create temporary output directory
+	tempOutputDir := t.TempDir()
+
+	config := Config{
+		InputDir:       filepath.Join(testDataDir, "xml"),
+		OutputDir:      tempOutputDir,
+		ResolvedFile:   "resolved.jsonl",
+		UnresolvedFile: "unresolved.jsonl",
+		UseCitTags:     true,
+	}
+
+	processor, err := NewCitationProcessor(config)
+	if err != nil {
+		t.Fatalf("Failed to create citation processor: %v", err)
+	}
+
+	// Process all XML files
+	err = processor.ProcessAllXMLFiles()
+	if err != nil {
+		t.Fatalf("Failed to process XML files: %v", err)
+	}
+
+	// Test 1: Verify document mappings file was created
+	t.Run("document_mappings_file_exists", func(t *testing.T) {
+		mappingPath := filepath.Join(tempOutputDir, "document_mappings.json")
+		if _, err := os.Stat(mappingPath); os.IsNotExist(err) {
+			t.Fatalf("Document mappings file not created at %s", mappingPath)
+		}
+		t.Logf("Document mappings file created at %s", mappingPath)
+	})
+
+	// Test 2: Verify document mappings content
+	t.Run("document_mappings_content", func(t *testing.T) {
+		mappingPath := filepath.Join(tempOutputDir, "document_mappings.json")
+		data, err := os.ReadFile(mappingPath)
+		if err != nil {
+			t.Fatalf("Failed to read document mappings: %v", err)
+		}
+
+		var mappings []struct {
+			ID       int    `json:"id"`
+			Filename string `json:"filename"`
+		}
+
+		err = json.Unmarshal(data, &mappings)
+		if err != nil {
+			t.Fatalf("Failed to parse document mappings JSON: %v", err)
+		}
+
+		// Should have 2 documents
+		if len(mappings) != 2 {
+			t.Errorf("Expected 2 document mappings, got %d", len(mappings))
+		}
+
+		// Verify IDs are sequential starting from 1
+		for i, mapping := range mappings {
+			expectedID := i + 1
+			if mapping.ID != expectedID {
+				t.Errorf("Expected document ID %d, got %d", expectedID, mapping.ID)
+			}
+
+			// Verify filename is set
+			if mapping.Filename == "" {
+				t.Errorf("Document %d has empty filename", mapping.ID)
+			}
+
+			t.Logf("Document %d: %s", mapping.ID, mapping.Filename)
+		}
+	})
+
+	// Test 3: Verify doc_cit_urn format in resolved citations
+	t.Run("doc_cit_urn_format", func(t *testing.T) {
+		resolvedPath := filepath.Join(tempOutputDir, "resolved.jsonl")
+		citations, err := loadCitations(resolvedPath)
+		if err != nil {
+			t.Fatalf("Failed to load resolved citations: %v", err)
+		}
+
+		// Track which document IDs we've seen
+		docIDsSeen := make(map[int]bool)
+		citCountByDoc := make(map[int]int)
+
+		for _, citation := range citations {
+			// Parse doc_cit_urn format ":citations-{docID}.{citationNum}"
+			var docID, citNum int
+			_, err := fmt.Sscanf(citation.DocCitURN, ":citations-%d.%d", &docID, &citNum)
+			if err != nil {
+				t.Errorf("Failed to parse doc_cit_urn '%s': %v", citation.DocCitURN, err)
+				continue
+			}
+
+			docIDsSeen[docID] = true
+			citCountByDoc[docID]++
+
+			// Verify docID is valid (should be 1 or 2)
+			if docID < 1 || docID > 2 {
+				t.Errorf("Invalid document ID %d in doc_cit_urn '%s'", docID, citation.DocCitURN)
+			}
+
+			// Verify citation number is positive
+			if citNum < 1 {
+				t.Errorf("Invalid citation number %d in doc_cit_urn '%s'", citNum, citation.DocCitURN)
+			}
+		}
+
+		// Verify we have citations from 2 documents
+		if len(docIDsSeen) != 2 {
+			t.Errorf("Expected citations from 2 documents, got %d", len(docIDsSeen))
+		}
+
+		// Log citation counts per document
+		for docID := 1; docID <= 2; docID++ {
+			count := citCountByDoc[docID]
+			t.Logf("Document %d has %d citations", docID, count)
+		}
+
+		// Verify first document has expected citation count (campbell = 2004)
+		if citCountByDoc[1] != 2004 {
+			t.Errorf("Document 1 expected 2004 citations, got %d", citCountByDoc[1])
+		}
+
+		// Verify second document has expected citation count (viaf = 2313)
+		if citCountByDoc[2] != 2313 {
+			t.Errorf("Document 2 expected 2313 citations, got %d", citCountByDoc[2])
+		}
+	})
+
+	// Test 4: Verify citations reset for each document (first citation of each doc should be X.1)
+	t.Run("citation_counter_resets", func(t *testing.T) {
+		resolvedPath := filepath.Join(tempOutputDir, "resolved.jsonl")
+		citations, err := loadCitations(resolvedPath)
+		if err != nil {
+			t.Fatalf("Failed to load resolved citations: %v", err)
+		}
+
+		// Find the minimum citation number for each document
+		minCitNumByDoc := make(map[int]int)
+
+		for _, citation := range citations {
+			var docID, citNum int
+			fmt.Sscanf(citation.DocCitURN, ":citations-%d.%d", &docID, &citNum)
+
+			if existingMin, exists := minCitNumByDoc[docID]; !exists || citNum < existingMin {
+				minCitNumByDoc[docID] = citNum
+			}
+		}
+
+		// Verify that each document starts at citation 1
+		for docID := 1; docID <= 2; docID++ {
+			minCitNum := minCitNumByDoc[docID]
+			if minCitNum != 1 {
+				t.Errorf("Document %d should start at citation 1, but starts at %d", docID, minCitNum)
+			}
+		}
+
+		t.Logf("All documents correctly start citation numbering at 1")
+	})
+}
+
 // BenchmarkCitationProcessing benchmarks the citation processing performance
 func BenchmarkCitationProcessing(b *testing.B) {
 	testDataDir := findTestDataDir()

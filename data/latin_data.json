@@ -4,6 +4,8 @@
     "catull.": "catullus",
     "caes.": "caesar",
     "cic.": "cicero",
+    "en.": "ennius",
+    "enn.": "ennius",
     "hor.": "horace",
     "iuv.": "juvenal",
     "juv.": "juvenal",
@@ -162,6 +164,18 @@
       "epistula ad octavianum [sp.]": "phi075",
       "de consolatu suo": "stoa007",
       "somnium scipionum": "stoa060a"
+    },
+    "ennius": {
+      "annales": "phi001",
+      "annals": "phi001",
+      "palliatae": "phi002",
+      "praetextae": "phi003",
+      "satires": "phi004",
+      "saturae": "phi004",
+      "tragoediae": "phi005",
+      "tragedies": "phi005",
+      "varia": "phi006",
+      "incerta": "phi007"
     },
     "horace": {
       "odes": "phi001",
@@ -328,6 +342,7 @@
     "caesar": "urn:cts:latinLit:phi0448",
     "catullus": "urn:cts:latinLit:phi0472",
     "cicero": "urn:cts:latinLit:phi0474",
+    "ennius": "urn:cts:latinLit:phi0043",
     "horace": "urn:cts:latinLit:phi0893",
     "juvenal": "urn:cts:latinLit:phi1276",
     "ovid": "urns:cts:latinLit:phi0959",

@@ -34,10 +34,13 @@ type Config struct {
 }
 
 type CitationProcessor struct {
-	Config     Config
-	Resolver   *resolver.URNResolver
-	Counter    int
-	CounterMux sync.Mutex
+	Config          Config
+	Resolver        *resolver.URNResolver
+	Counter         int
+	CounterMux      sync.Mutex
+	DocCounter      int
+	DocCounterMux   sync.Mutex
+	DocumentMapping map[int]string
 }
 
 func NewCitationProcessor(config Config) (*CitationProcessor, error) {
@@ -47,9 +50,11 @@ func NewCitationProcessor(config Config) (*CitationProcessor, error) {
 	}
 
 	return &CitationProcessor{
-		Config:   config,
-		Resolver: urnResolver,
-		Counter:  0,
+		Config:          config,
+		Resolver:        urnResolver,
+		Counter:         0,
+		DocCounter:      0,
+		DocumentMapping: make(map[int]string),
 	}, nil
 }
 
@@ -108,10 +113,27 @@ func (cp *CitationProcessor) ProcessAllXMLFiles() error {
 		}
 	}
 
+	// Write document mappings to JSON file
+	if err := cp.WriteDocumentMappings(); err != nil {
+		return fmt.Errorf("failed to write document mappings: %w", err)
+	}
+
 	return nil
 }
 
 func (cp *CitationProcessor) ProcessXMLFile(filename string) error {
+	// Increment document counter and reset citation counter for new document
+	cp.DocCounterMux.Lock()
+	cp.DocCounter++
+	currentDocID := cp.DocCounter
+	cp.DocumentMapping[currentDocID] = filename
+	cp.DocCounterMux.Unlock()
+
+	// Reset citation counter for this document
+	cp.CounterMux.Lock()
+	cp.Counter = 0
+	cp.CounterMux.Unlock()
+
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", filename, err)
@@ -161,8 +183,14 @@ func (cp *CitationProcessor) extractBiblTags(xmlContent, filename string) []Cita
 func (cp *CitationProcessor) processCitationTag(citMatch, xmlContent, filename string) Citation {
 	cp.CounterMux.Lock()
 	cp.Counter++
-	citURN := fmt.Sprintf(":citations-%d.%d", 1, cp.Counter)
+	citationNum := cp.Counter
 	cp.CounterMux.Unlock()
+
+	cp.DocCounterMux.Lock()
+	docID := cp.DocCounter
+	cp.DocCounterMux.Unlock()
+
+	citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
 
 	// Extract bibl element from within the cit tag
 	biblRegex := regexp.MustCompile(`(?s)<bibl[^>]*>.*?</bibl>`)
@@ -214,8 +242,14 @@ func (cp *CitationProcessor) processCitationTag(citMatch, xmlContent, filename s
 func (cp *CitationProcessor) ProcessCitation(biblMatch, xmlContent, filename string, extractQuotes bool) Citation {
 	cp.CounterMux.Lock()
 	cp.Counter++
-	citURN := fmt.Sprintf(":citations-%d.%d", 1, cp.Counter) // Simplified URN structure
+	citationNum := cp.Counter
 	cp.CounterMux.Unlock()
+
+	cp.DocCounterMux.Lock()
+	docID := cp.DocCounter
+	cp.DocCounterMux.Unlock()
+
+	citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
 
 	// Extract n attribute
 	nAttr := cp.extractAttribute(biblMatch, "n")
@@ -341,6 +375,43 @@ func (cp *CitationProcessor) WriteCitations(citations []Citation) error {
 	return nil
 }
 
+func (cp *CitationProcessor) WriteDocumentMappings() error {
+	mappingPath := filepath.Join(cp.Config.OutputDir, "document_mappings.json")
+
+	// Create a sorted list of document IDs for consistent output
+	type docMapping struct {
+		ID       int    `json:"id"`
+		Filename string `json:"filename"`
+	}
+
+	mappings := make([]docMapping, 0, len(cp.DocumentMapping))
+	for id, filename := range cp.DocumentMapping {
+		mappings = append(mappings, docMapping{ID: id, Filename: filename})
+	}
+
+	// Sort by ID to ensure consistent ordering
+	for i := 0; i < len(mappings); i++ {
+		for j := i + 1; j < len(mappings); j++ {
+			if mappings[i].ID > mappings[j].ID {
+				mappings[i], mappings[j] = mappings[j], mappings[i]
+			}
+		}
+	}
+
+	// Write to file with pretty formatting
+	jsonData, err := json.MarshalIndent(mappings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal document mappings: %w", err)
+	}
+
+	if err := os.WriteFile(mappingPath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write document mappings file: %w", err)
+	}
+
+	fmt.Printf("Document mappings written to %s\n", mappingPath)
+	return nil
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -410,8 +481,14 @@ func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename str
 func (cp *CitationProcessor) createCitationFromParts(nAttr, biblContent, quote, xmlContent, filename string) Citation {
 	cp.CounterMux.Lock()
 	cp.Counter++
-	citURN := fmt.Sprintf(":citations-%d.%d", 1, cp.Counter)
+	citationNum := cp.Counter
 	cp.CounterMux.Unlock()
+
+	cp.DocCounterMux.Lock()
+	docID := cp.DocCounter
+	cp.DocCounterMux.Unlock()
+
+	citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
 
 	// Get reference string for URN resolution
 	ref := cp.Resolver.GetRef(nAttr, biblContent)

@@ -122,10 +122,11 @@ You can use the files from this repository's `data/` directory or create your ow
 
 ## Output
 
-The application generates:
+The application generates three output files in the specified output directory:
 
 - `resolved.jsonl` - Successfully resolved citations with CTS URNs
 - `unresolved.jsonl` - Citations that could not be resolved (typically 0 with current implementation)
+- `document_mappings.json` - Mapping from document IDs to XML filenames
 
 ## Citation Format
 
