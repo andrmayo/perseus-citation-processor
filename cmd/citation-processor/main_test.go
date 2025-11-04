@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -143,6 +144,35 @@ func TestCitationProcessing(t *testing.T) {
 
 				compareCitations(t, "unresolved", expectedUnresolved, actualUnresolved)
 			})
+
+			// Verify total citation count matches bibl element count
+			t.Run("bibl_count_validation", func(t *testing.T) {
+				// Count bibl elements in XML
+				biblCount, err := countBiblElements(tt.xmlFile)
+				if err != nil {
+					t.Fatalf("Failed to count bibl elements in XML: %v", err)
+				}
+
+				// Count total citations (resolved + unresolved)
+				resolvedCitations, err := loadCitations(resolvedFile)
+				if err != nil {
+					t.Fatalf("Failed to load resolved citations: %v", err)
+				}
+
+				unresolvedCitations, err := loadCitations(unresolvedFile)
+				if err != nil {
+					t.Fatalf("Failed to load unresolved citations: %v", err)
+				}
+
+				totalCitations := len(resolvedCitations) + len(unresolvedCitations)
+
+				if totalCitations != biblCount {
+					t.Errorf("Citation count mismatch: found %d <bibl> elements in XML, but extracted %d total citations (resolved: %d, unresolved: %d)",
+						biblCount, totalCitations, len(resolvedCitations), len(unresolvedCitations))
+				} else {
+					t.Logf("Citation count matches: %d <bibl> elements = %d total citations", biblCount, totalCitations)
+				}
+			})
 		})
 	}
 }
@@ -222,6 +252,21 @@ func TestWorkAbbreviations(t *testing.T) {
 			}
 		})
 	}
+}
+
+// countBiblElements counts the number of <bibl> elements in an XML file
+func countBiblElements(xmlFile string) (int, error) {
+	content, err := os.ReadFile(xmlFile)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read XML file: %w", err)
+	}
+
+	// Count all <bibl> opening tags (but not <biblStruct> or <biblScope>)
+	// The word boundary \b ensures we only match <bibl> and <bibl ...>, not <biblStruct> or <biblScope>
+	biblRegex := regexp.MustCompile(`<bibl\b`)
+	matches := biblRegex.FindAllString(string(content), -1)
+
+	return len(matches), nil
 }
 
 // loadCitations loads citations from a JSONL file

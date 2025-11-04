@@ -141,14 +141,15 @@ func (cp *CitationProcessor) ExtractCitations(xmlContent, filename string) []Cit
 // extractBiblTags extracts citations using <bibl> tags directly (original method)
 func (cp *CitationProcessor) extractBiblTags(xmlContent, filename string) []Citation {
 	// Regex to find <bibl> elements
-	biblRegex := regexp.MustCompile(`<bibl[^>]*>.*?</bibl>`)
+	biblRegex := regexp.MustCompile(`(?s)<bibl[^>]*>.*?</bibl>`)
 	matches := biblRegex.FindAllStringSubmatch(xmlContent, -1)
 
 	var citations []Citation
 
 	for _, match := range matches {
 		if len(match) > 0 {
-			citation := cp.ProcessCitation(match[0], xmlContent, filename)
+			// In -nocit mode, preserve original behavior: extract nearby quotes
+			citation := cp.ProcessCitation(match[0], xmlContent, filename, true)
 			citations = append(citations, citation)
 		}
 	}
@@ -164,7 +165,7 @@ func (cp *CitationProcessor) processCitationTag(citMatch, xmlContent, filename s
 	cp.CounterMux.Unlock()
 
 	// Extract bibl element from within the cit tag
-	biblRegex := regexp.MustCompile(`<bibl[^>]*>.*?</bibl>`)
+	biblRegex := regexp.MustCompile(`(?s)<bibl[^>]*>.*?</bibl>`)
 	biblMatch := biblRegex.FindString(citMatch)
 
 	if biblMatch == "" {
@@ -210,7 +211,7 @@ func (cp *CitationProcessor) processCitationTag(citMatch, xmlContent, filename s
 	}
 }
 
-func (cp *CitationProcessor) ProcessCitation(biblMatch, xmlContent, filename string) Citation {
+func (cp *CitationProcessor) ProcessCitation(biblMatch, xmlContent, filename string, extractQuotes bool) Citation {
 	cp.CounterMux.Lock()
 	cp.Counter++
 	citURN := fmt.Sprintf(":citations-%d.%d", 1, cp.Counter) // Simplified URN structure
@@ -222,8 +223,11 @@ func (cp *CitationProcessor) ProcessCitation(biblMatch, xmlContent, filename str
 	// Extract bibl content
 	biblContent := cp.extractBiblContent(biblMatch)
 
-	// Extract quote (look for quote element after bibl)
-	quote := cp.extractQuote(xmlContent, biblMatch)
+	// Extract quote (look for quote element after bibl) - only if requested
+	var quote string
+	if extractQuotes {
+		quote = cp.extractQuote(xmlContent, biblMatch)
+	}
 
 	// Extract context (500 chars before and after)
 	context := cp.extractContext(xmlContent, biblMatch, 500)
@@ -260,7 +264,7 @@ func (cp *CitationProcessor) extractAttribute(element, attrName string) string {
 }
 
 func (cp *CitationProcessor) extractBiblContent(biblElement string) string {
-	re := regexp.MustCompile(`<bibl[^>]*>(.*?)</bibl>`)
+	re := regexp.MustCompile(`(?s)<bibl[^>]*>(.*?)</bibl>`)
 	match := re.FindStringSubmatch(biblElement)
 	if len(match) > 1 {
 		return strings.TrimSpace(match[1])
@@ -277,7 +281,7 @@ func (cp *CitationProcessor) extractQuote(xmlContent, biblMatch string) string {
 
 	// Look for quote element after bibl
 	afterBibl := xmlContent[index+len(biblMatch):]
-	quoteRegex := regexp.MustCompile(`<quote[^>]*>(.*?)</quote>`)
+	quoteRegex := regexp.MustCompile(`(?s)<quote[^>]*>(.*?)</quote>`)
 	match := quoteRegex.FindStringSubmatch(afterBibl[:min(len(afterBibl), 200)])
 
 	if len(match) > 1 {
@@ -355,7 +359,6 @@ func max(a, b int) int {
 // This is a comprehensive approach that doesn't depend on specific XML hierarchy
 func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename string) []Citation {
 	var allCitations []Citation
-	citationMap := make(map[string]bool) // To avoid duplicates
 
 	// Pattern 1: Extract ALL <cit> elements anywhere in the document
 	citRegex := regexp.MustCompile(`(?s)<cit\b[^>]*>.*?</cit>`)
@@ -364,69 +367,25 @@ func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename str
 	for _, citMatch := range citMatches {
 		citation := cp.processCitationTag(citMatch, xmlContent, filename)
 		if citation.Bibl != "" {
-			key := citation.Bibl + "|" + citation.NAttrib + "|" + citation.Quote
-			if !citationMap[key] {
-				allCitations = append(allCitations, citation)
-				citationMap[key] = true
-			}
+			allCitations = append(allCitations, citation)
 		}
 	}
 
 	// Pattern 2: Extract ALL standalone <bibl> elements (not within <cit>)
 	// First remove all <cit> containers to avoid double-counting
 	contentWithoutCit := citRegex.ReplaceAllString(xmlContent, "")
-	biblRegex := regexp.MustCompile(`<bibl\b[^>]*>.*?</bibl>`)
+	biblRegex := regexp.MustCompile(`(?s)<bibl\b[^>]*>.*?</bibl>`)
 	biblMatches := biblRegex.FindAllString(contentWithoutCit, -1)
 
 	for _, biblMatch := range biblMatches {
-		citation := cp.ProcessCitation(biblMatch, xmlContent, filename)
+		// Don't extract quotes for standalone <bibl> tags in default mode
+		citation := cp.ProcessCitation(biblMatch, xmlContent, filename, false)
 		if citation.Bibl != "" {
-			key := citation.Bibl + "|" + citation.NAttrib + "|" + citation.Quote
-			if !citationMap[key] {
-				allCitations = append(allCitations, citation)
-				citationMap[key] = true
-			}
+			allCitations = append(allCitations, citation)
 		}
 	}
 
-	// Pattern 3: Look for <bibl> elements with n attributes that might have quotes nearby
-	// This catches cases where bibl and quote might not be in a formal <cit> structure
-	biblWithNRegex := regexp.MustCompile(`<bibl\b[^>]*\bn\s*=\s*"([^"]+)"[^>]*>([^<]*)</bibl>`)
-	biblWithNMatches := biblWithNRegex.FindAllStringSubmatch(xmlContent, -1)
-
-	for _, match := range biblWithNMatches {
-		if len(match) >= 3 {
-			nAttr := match[1]
-			biblContent := strings.TrimSpace(match[2])
-
-			// Look for nearby quote elements (within 500 characters)
-			biblIndex := strings.Index(xmlContent, match[0])
-			if biblIndex >= 0 {
-				start := max(0, biblIndex-250)
-				end := min(len(xmlContent), biblIndex+len(match[0])+250)
-				context := xmlContent[start:end]
-
-				quoteRegex := regexp.MustCompile(`<quote[^>]*>([^<]+)</quote>`)
-				quoteMatches := quoteRegex.FindAllStringSubmatch(context, -1)
-
-				var quote string
-				if len(quoteMatches) > 0 && len(quoteMatches[0]) > 1 {
-					quote = strings.TrimSpace(quoteMatches[0][1])
-				}
-
-				citation := cp.createCitationFromParts(nAttr, biblContent, quote, xmlContent, filename)
-				if citation.Bibl != "" {
-					key := citation.Bibl + "|" + citation.NAttrib + "|" + citation.Quote
-					if !citationMap[key] {
-						allCitations = append(allCitations, citation)
-						citationMap[key] = true
-					}
-				}
-			}
-		}
-	}
-
-	// Pattern 4: Look for <ref> elements that might contain citations
+	// Pattern 3: Look for <ref> elements that might contain citations
 	// Be more selective - only include if they resolve to valid URNs
 	refRegex := regexp.MustCompile(`<ref\b[^>]*>([^<]+)</ref>`)
 	refMatches := refRegex.FindAllStringSubmatch(xmlContent, -1)
@@ -438,11 +397,7 @@ func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename str
 			if refContent != "" && regexp.MustCompile(`[A-Za-z]+\.\s*[A-Za-z]*\s*\d+`).MatchString(refContent) {
 				citation := cp.createCitationFromParts("", refContent, "", xmlContent, filename)
 				if citation.Bibl != "" && citation.URN != "" {
-					key := citation.Bibl + "|" + citation.NAttrib + "|" + citation.Quote
-					if !citationMap[key] {
-						allCitations = append(allCitations, citation)
-						citationMap[key] = true
-					}
+					allCitations = append(allCitations, citation)
 				}
 			}
 		}

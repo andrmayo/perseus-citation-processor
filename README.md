@@ -17,8 +17,14 @@ with an eye to automating citation tagging in XML documents at some point in the
 
 - **Flexible Citation Extraction**: Supports two extraction modes:
   - Default mode for citations in preferred TEI Epidoc format:
-    Extraction from any XML structure containing citation patterns contained within `<cit>` (the preferred TEI Epidoc format)
-  - No cit tag mode: Extraction where `<bibl>` and `<quote>` are used without being nested within `<cit>` tags
+    Extraction from any XML structure where any citation patterns
+    with a `<quote>` element are nested within `<cit>`
+    (the preferred TEI Epidoc format).
+
+  - No cit tag mode: Extraction where `<bibl>` and `<quote>`
+    are used without being nested within `<cit>` tags.
+    For this mode, pass `-nocit` option.
+
 - **Advanced Reference Resolution**: Resolves author/work abbreviations with dynamic disambiguation (e.g., Pliny Senior vs Junior)
 - **Work Abbreviation Generation**: Automatically generates multiple abbreviation variants for work titles
 - **CTS URN Generation**: Creates standardized URNs following Canonical Text Services format
@@ -175,7 +181,7 @@ The system automatically resolves ambiguous authors based on work titles:
 
 ### Test Suite
 
-To run tests, use `go run ./cmd/citation-processor/`.
+To run tests, use `go test ./cmd/citation-processor/`.
 
 - `cmd/citation-processor/main_test.go` - Comprehensive test suite including:
   - End-to-end citation processing tests
