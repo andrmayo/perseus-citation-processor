@@ -491,6 +491,7 @@ func TestMultiDocumentProcessing(t *testing.T) {
 		ResolvedFile:   "resolved.jsonl",
 		UnresolvedFile: "unresolved.jsonl",
 		UseCitTags:     true,
+		Parallel:       1, // Force sequential mode for deterministic testing
 	}
 
 	processor, err := NewCitationProcessor(config)

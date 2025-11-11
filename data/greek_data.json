@@ -497,7 +497,8 @@
     },
     "lycophron": {
       "fragmenta": "rlg001",
-      "alexandra": "tlg002"
+      "alexandra": "tlg002",
+      "cassandra": "tlg002"
     },
     "lysias": {
       "or.": ["tlg", 1, 60],

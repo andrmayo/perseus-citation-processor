@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -31,16 +32,23 @@ type Config struct {
 	ResolvedFile   string
 	UnresolvedFile string
 	UseCitTags     bool
+	Parallel       int
 }
 
 type CitationProcessor struct {
-	Config          Config
-	Resolver        *resolver.URNResolver
-	Counter         int
-	CounterMux      sync.Mutex
-	DocCounter      int
-	DocCounterMux   sync.Mutex
-	DocumentMapping map[int]string
+	Config            Config
+	Resolver          *resolver.URNResolver
+	DocCounter        int
+	DocCounterMux     sync.Mutex
+	DocumentMapping   map[int]string
+	DocCitCounters    map[int]int // Map from docID to citation counter for that document
+	DocCitCountersMux sync.Mutex
+}
+
+// type for channel
+type fileJob struct {
+	filename string
+	docID    int
 }
 
 func NewCitationProcessor(config Config) (*CitationProcessor, error) {
@@ -52,9 +60,9 @@ func NewCitationProcessor(config Config) (*CitationProcessor, error) {
 	return &CitationProcessor{
 		Config:          config,
 		Resolver:        urnResolver,
-		Counter:         0,
 		DocCounter:      0,
 		DocumentMapping: make(map[int]string),
+		DocCitCounters:  make(map[int]int),
 	}, nil
 }
 
@@ -63,6 +71,7 @@ func main() {
 	noCitTags := flag.Bool("nocit", false, "Use <bibl> and <quote> tags to guide citation extraction (default: use <cit> tags)")
 	inputDir := flag.String("input", ".", "Input directory containing XML files")
 	outputDir := flag.String("output", "cit_data", "Output directory for JSONL files")
+	parallel := flag.Int("parallel", 0, "Number of files to process concurrently, default to 0 for files = # threads, pass 1 for sequential processing")
 	flag.Parse()
 
 	config := Config{
@@ -71,6 +80,7 @@ func main() {
 		ResolvedFile:   "resolved.jsonl",
 		UnresolvedFile: "unresolved.jsonl",
 		UseCitTags:     !*noCitTags,
+		Parallel:       *parallel,
 	}
 
 	processor, err := NewCitationProcessor(config)
@@ -105,6 +115,36 @@ func (cp *CitationProcessor) ProcessAllXMLFiles() error {
 	if err != nil {
 		return fmt.Errorf("error finding XML files: %w", err)
 	}
+
+	if len(xmlFiles) == 0 {
+		return fmt.Errorf("no XML files found in %s", cp.Config.InputDir)
+	}
+
+	maxWorkers := cp.Config.Parallel
+
+	if maxWorkers < 0 {
+		return fmt.Errorf("config error: parallel must be >= 0 but is %d", maxWorkers)
+	}
+	if maxWorkers == 0 {
+		maxWorkers = runtime.NumCPU()
+	}
+
+	// maxWorkers must be <= number of files
+	if maxWorkers > len(xmlFiles) {
+		maxWorkers = len(xmlFiles)
+	}
+
+	fmt.Printf("Processing %d XML files with %d workers\n", len(xmlFiles), maxWorkers)
+
+	if maxWorkers == 1 {
+		// Sequential processing
+		return cp.processSequential(xmlFiles)
+	} else {
+		return cp.processConcurrent(xmlFiles, maxWorkers)
+	}
+}
+
+func (cp *CitationProcessor) processSequential(xmlFiles []string) error {
 	for _, xmlFile := range xmlFiles {
 		fmt.Printf("Processing %s...\n", xmlFile)
 		if err := cp.ProcessXMLFile(xmlFile); err != nil {
@@ -121,18 +161,128 @@ func (cp *CitationProcessor) ProcessAllXMLFiles() error {
 	return nil
 }
 
+func (cp *CitationProcessor) processConcurrent(xmlFiles []string, maxWorkers int) error {
+	jobs := make(chan fileJob, len(xmlFiles))
+	citations := make(chan Citation, 1000) // the capacity here is somewhat arbitrary
+
+	// To track worker completion
+	var wg sync.WaitGroup
+
+	// Start writer goroutine with single writer to avoid race conditions
+	writerDone := make(chan error, 1)
+	go cp.citationWriter(citations, writerDone)
+
+	// Start worker pool
+	for w := 0; w < maxWorkers; w++ {
+		wg.Add(1)
+		go cp.fileWorker(jobs, citations, &wg)
+	}
+
+	// Pre-assign document IDs for deterministic ordering
+	// Ensures doc IDs are based on file order rather than processing order
+	for i, xmlFile := range xmlFiles {
+		jobs <- fileJob{
+			filename: xmlFile,
+			docID:    i + 1,
+		}
+	}
+	close(jobs)
+
+	// Wait for workers
+	wg.Wait()
+
+	close(citations)
+
+	// Wait for writer to finish
+	if err := <-writerDone; err != nil {
+		return err
+	}
+
+	// Write document mappings to JSON file
+	if err := cp.WriteDocumentMappings(); err != nil {
+		return fmt.Errorf("failed to write document mappings: %w", err)
+	}
+
+	return nil
+}
+
+func (cp *CitationProcessor) fileWorker(jobs <-chan fileJob, citations chan<- Citation, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for job := range jobs {
+		fmt.Printf("Processing %s...\n", job.filename)
+
+		// Set document ID
+		cp.DocCounterMux.Lock()
+		cp.DocCounter = job.docID
+		cp.DocumentMapping[job.docID] = job.filename
+		cp.DocCounterMux.Unlock()
+
+		content, err := os.ReadFile(job.filename)
+		if err != nil {
+			log.Printf("Error reading %s: %v", job.filename, err)
+			continue
+		}
+
+		extractedCitations := cp.ExtractCitations(string(content), job.filename, job.docID)
+
+		// Send citations to writer channel
+		for _, citation := range extractedCitations {
+			citations <- citation
+		}
+	}
+}
+
+func (cp *CitationProcessor) citationWriter(citations <-chan Citation, done chan<- error) {
+	resolvedPath := filepath.Join(cp.Config.OutputDir, cp.Config.ResolvedFile)
+	unresolvedPath := filepath.Join(cp.Config.OutputDir, cp.Config.UnresolvedFile)
+
+	resolvedFile, err := os.OpenFile(resolvedPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		done <- err
+		return
+	}
+
+	defer resolvedFile.Close()
+
+	unresolvedFile, err := os.OpenFile(unresolvedPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		done <- err
+		return
+	}
+
+	defer unresolvedFile.Close()
+
+	// Now, with file handling and errors out of the way, process all citations from channel
+	for citation := range citations {
+		jsonData, err := json.Marshal(citation)
+		if err != nil {
+			log.Printf("Error marshaling citation: %v", err)
+			continue
+		}
+
+		if citation.URN != "" && citation.Ref != "" {
+			// Successful resolution
+			resolvedFile.Write(jsonData)
+			resolvedFile.WriteString("\n")
+		} else {
+			unresolvedFile.Write(jsonData)
+			unresolvedFile.WriteString("\n")
+		}
+	}
+
+	done <- nil
+}
+
+// Note: this function is only used in sequential mode (i.e. with just one worker for XML files)
+// Equivalent function for concurrent mode is fileWorker()
 func (cp *CitationProcessor) ProcessXMLFile(filename string) error {
-	// Increment document counter and reset citation counter for new document
+	// Increment document counter for new document
 	cp.DocCounterMux.Lock()
 	cp.DocCounter++
 	currentDocID := cp.DocCounter
 	cp.DocumentMapping[currentDocID] = filename
 	cp.DocCounterMux.Unlock()
-
-	// Reset citation counter for this document
-	cp.CounterMux.Lock()
-	cp.Counter = 0
-	cp.CounterMux.Unlock()
 
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -140,28 +290,28 @@ func (cp *CitationProcessor) ProcessXMLFile(filename string) error {
 	}
 
 	// Extract citations from XML content
-	citations := cp.ExtractCitations(string(content), filename)
+	citations := cp.ExtractCitations(string(content), filename, currentDocID)
 
 	// Write citations to appropriate output files
 	return cp.WriteCitations(citations)
 }
 
-func (cp *CitationProcessor) ExtractCitations(xmlContent, filename string) []Citation {
+func (cp *CitationProcessor) ExtractCitations(xmlContent, filename string, docID int) []Citation {
 	var allCitations []Citation
 
 	if cp.Config.UseCitTags {
 		// Comprehensive extraction approach - find all citation patterns regardless of XML structure
-		allCitations = cp.extractAllCitationPatterns(xmlContent, filename)
+		allCitations = cp.extractAllCitationPatterns(xmlContent, filename, docID)
 	} else {
 		// Original behavior: only extract <bibl> tags
-		allCitations = cp.extractBiblTags(xmlContent, filename)
+		allCitations = cp.extractBiblTags(xmlContent, filename, docID)
 	}
 
 	return allCitations
 }
 
 // extractBiblTags extracts citations using <bibl> tags directly (original method)
-func (cp *CitationProcessor) extractBiblTags(xmlContent, filename string) []Citation {
+func (cp *CitationProcessor) extractBiblTags(xmlContent, filename string, docID int) []Citation {
 	// Regex to find <bibl> elements
 	biblRegex := regexp.MustCompile(`(?s)<bibl[^>]*>.*?</bibl>`)
 	matches := biblRegex.FindAllStringSubmatch(xmlContent, -1)
@@ -171,7 +321,7 @@ func (cp *CitationProcessor) extractBiblTags(xmlContent, filename string) []Cita
 	for _, match := range matches {
 		if len(match) > 0 {
 			// In -nocit mode, preserve original behavior: extract nearby quotes
-			citation := cp.ProcessCitation(match[0], xmlContent, filename, true)
+			citation := cp.ProcessCitation(match[0], xmlContent, filename, true, docID)
 			citations = append(citations, citation)
 		}
 	}
@@ -180,15 +330,11 @@ func (cp *CitationProcessor) extractBiblTags(xmlContent, filename string) []Cita
 }
 
 // processCitationTag processes a single <cit> element containing <bibl> and <quote>
-func (cp *CitationProcessor) processCitationTag(citMatch, xmlContent, filename string) Citation {
-	cp.CounterMux.Lock()
-	cp.Counter++
-	citationNum := cp.Counter
-	cp.CounterMux.Unlock()
-
-	cp.DocCounterMux.Lock()
-	docID := cp.DocCounter
-	cp.DocCounterMux.Unlock()
+func (cp *CitationProcessor) processCitationTag(citMatch, xmlContent, filename string, docID int) Citation {
+	cp.DocCitCountersMux.Lock()
+	cp.DocCitCounters[docID]++
+	citationNum := cp.DocCitCounters[docID]
+	cp.DocCitCountersMux.Unlock()
 
 	citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
 
@@ -239,15 +385,11 @@ func (cp *CitationProcessor) processCitationTag(citMatch, xmlContent, filename s
 	}
 }
 
-func (cp *CitationProcessor) ProcessCitation(biblMatch, xmlContent, filename string, extractQuotes bool) Citation {
-	cp.CounterMux.Lock()
-	cp.Counter++
-	citationNum := cp.Counter
-	cp.CounterMux.Unlock()
-
-	cp.DocCounterMux.Lock()
-	docID := cp.DocCounter
-	cp.DocCounterMux.Unlock()
+func (cp *CitationProcessor) ProcessCitation(biblMatch, xmlContent, filename string, extractQuotes bool, docID int) Citation {
+	cp.DocCitCountersMux.Lock()
+	cp.DocCitCounters[docID]++
+	citationNum := cp.DocCitCounters[docID]
+	cp.DocCitCountersMux.Unlock()
 
 	citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
 
@@ -428,7 +570,7 @@ func max(a, b int) int {
 
 // extractAllCitationPatterns finds all citation patterns in any XML structure
 // This is a comprehensive approach that doesn't depend on specific XML hierarchy
-func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename string) []Citation {
+func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename string, docID int) []Citation {
 	var allCitations []Citation
 
 	// Pattern 1: Extract ALL <cit> elements anywhere in the document
@@ -436,7 +578,7 @@ func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename str
 	citMatches := citRegex.FindAllString(xmlContent, -1)
 
 	for _, citMatch := range citMatches {
-		citation := cp.processCitationTag(citMatch, xmlContent, filename)
+		citation := cp.processCitationTag(citMatch, xmlContent, filename, docID)
 		if citation.Bibl != "" {
 			allCitations = append(allCitations, citation)
 		}
@@ -450,7 +592,7 @@ func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename str
 
 	for _, biblMatch := range biblMatches {
 		// Don't extract quotes for standalone <bibl> tags in default mode
-		citation := cp.ProcessCitation(biblMatch, xmlContent, filename, false)
+		citation := cp.ProcessCitation(biblMatch, xmlContent, filename, false, docID)
 		if citation.Bibl != "" {
 			allCitations = append(allCitations, citation)
 		}
@@ -466,7 +608,7 @@ func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename str
 			refContent := strings.TrimSpace(match[1])
 			// Only consider ref content that looks like a real citation (has author.work pattern)
 			if refContent != "" && regexp.MustCompile(`[A-Za-z]+\.\s*[A-Za-z]*\s*\d+`).MatchString(refContent) {
-				citation := cp.createCitationFromParts("", refContent, "", xmlContent, filename)
+				citation := cp.createCitationFromParts("", refContent, "", xmlContent, filename, docID)
 				if citation.Bibl != "" && citation.URN != "" {
 					allCitations = append(allCitations, citation)
 				}
@@ -478,15 +620,11 @@ func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename str
 }
 
 // createCitationFromParts creates a Citation from individual components
-func (cp *CitationProcessor) createCitationFromParts(nAttr, biblContent, quote, xmlContent, filename string) Citation {
-	cp.CounterMux.Lock()
-	cp.Counter++
-	citationNum := cp.Counter
-	cp.CounterMux.Unlock()
-
-	cp.DocCounterMux.Lock()
-	docID := cp.DocCounter
-	cp.DocCounterMux.Unlock()
+func (cp *CitationProcessor) createCitationFromParts(nAttr, biblContent, quote, xmlContent, filename string, docID int) Citation {
+	cp.DocCitCountersMux.Lock()
+	cp.DocCitCounters[docID]++
+	citationNum := cp.DocCitCounters[docID]
+	cp.DocCitCountersMux.Unlock()
 
 	citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
 
@@ -513,4 +651,3 @@ func (cp *CitationProcessor) createCitationFromParts(nAttr, biblContent, quote, 
 		DocCitURN:  citURN,
 	}
 }
-
