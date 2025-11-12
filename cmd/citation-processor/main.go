@@ -7,12 +7,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
-	"strings"
 	"sync"
 
 	"perseus_citation_linker/pkg/resolver"
+	"perseus_citation_linker/pkg/xmlparser"
 )
 
 type Citation struct {
@@ -297,198 +296,50 @@ func (cp *CitationProcessor) ProcessXMLFile(filename string) error {
 }
 
 func (cp *CitationProcessor) ExtractCitations(xmlContent, filename string, docID int) []Citation {
-	// First, remove TEI header (sometimes contains metadata packaged in <bibl> tags)
-	xmlContent = stripTEIHeader(xmlContent)
+	// Use the proper XML parser to extract citations
+	parsedCitations, err := xmlparser.ExtractCitations(xmlContent)
+	if err != nil {
+		log.Printf("Error parsing XML from %s: %v", filename, err)
+		return []Citation{}
+	}
 
 	var allCitations []Citation
 
-	if cp.Config.UseCitTags {
-		// Comprehensive extraction approach - find all citation patterns regardless of XML structure
-		allCitations = cp.extractAllCitationPatterns(xmlContent, filename, docID)
-	} else {
-		// Original behavior: only extract <bibl> tags
-		allCitations = cp.extractBiblTags(xmlContent, filename, docID)
+	// Convert parsed citations to our Citation format and resolve URNs
+	for _, parsedCit := range parsedCitations {
+		cp.DocCitCountersMux.Lock()
+		cp.DocCitCounters[docID]++
+		citationNum := cp.DocCitCounters[docID]
+		cp.DocCitCountersMux.Unlock()
+
+		citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
+
+		// Get reference string for URN resolution
+		ref := cp.Resolver.GetRef(parsedCit.NAttribute, parsedCit.BiblText)
+
+		// Resolve to URN
+		var urn string
+		if ref != "" {
+			urn = cp.Resolver.GetURN(ref, parsedCit.Context, filename)
+		}
+
+		citation := Citation{
+			NAttrib:    parsedCit.NAttribute,
+			Bibl:       parsedCit.BiblText,
+			Ref:        ref,
+			URN:        urn,
+			Quote:      parsedCit.QuoteText,
+			XMLContext: parsedCit.Context,
+			Filename:   filename,
+			DocCitURN:  citURN,
+		}
+
+		allCitations = append(allCitations, citation)
 	}
 
 	return allCitations
 }
 
-func stripTEIHeader(xmlContent string) string {
-	// Match <teiHeader> ... </teiHeader> (case-insensitive, dotall mode)
-	headerRegex := regexp.MustCompile(`(?si)<teiHeader[^>]*>.*?</teiHeader>`)
-	return headerRegex.ReplaceAllString(xmlContent, "")
-}
-
-// extractBiblTags extracts citations using <bibl> tags directly (original method)
-func (cp *CitationProcessor) extractBiblTags(xmlContent, filename string, docID int) []Citation {
-	// Regex to find <bibl> elements
-	biblRegex := regexp.MustCompile(`(?s)<bibl[^>]*>.*?</bibl>`)
-	matches := biblRegex.FindAllStringSubmatch(xmlContent, -1)
-
-	var citations []Citation
-
-	for _, match := range matches {
-		if len(match) > 0 {
-			// In -nocit mode, preserve original behavior: extract nearby quotes
-			citation := cp.ProcessCitation(match[0], xmlContent, filename, true, docID)
-			citations = append(citations, citation)
-		}
-	}
-
-	return citations
-}
-
-// processCitationTag processes a single <cit> element containing <bibl> and <quote>
-func (cp *CitationProcessor) processCitationTag(citMatch, xmlContent, filename string, docID int) Citation {
-	cp.DocCitCountersMux.Lock()
-	cp.DocCitCounters[docID]++
-	citationNum := cp.DocCitCounters[docID]
-	cp.DocCitCountersMux.Unlock()
-
-	citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
-
-	// Extract bibl element from within the cit tag
-	biblRegex := regexp.MustCompile(`(?s)<bibl[^>]*>.*?</bibl>`)
-	biblMatch := biblRegex.FindString(citMatch)
-
-	if biblMatch == "" {
-		// No bibl found in this cit element
-		return Citation{}
-	}
-
-	// Extract quote element from within the cit tag
-	quoteRegex := regexp.MustCompile(`(?s)<quote[^>]*>(.*?)</quote>`)
-	quoteMatches := quoteRegex.FindStringSubmatch(citMatch)
-	var quote string
-	if len(quoteMatches) > 1 {
-		quote = strings.TrimSpace(quoteMatches[1])
-	}
-
-	// Extract n attribute from bibl tag
-	nAttr := cp.extractAttribute(biblMatch, "n")
-
-	// Extract bibl content (text between tags)
-	biblContent := cp.extractBiblContent(biblMatch)
-
-	// Get reference string for URN resolution
-	ref := cp.Resolver.GetRef(nAttr, biblContent)
-
-	// Resolve to URN
-	var urn string
-	if ref != "" {
-		urn = cp.Resolver.GetURN(ref, citMatch, filename)
-	}
-
-	// Extract context around the citation
-	context := cp.extractContext(xmlContent, citMatch, 500)
-
-	return Citation{
-		NAttrib:    nAttr,
-		Bibl:       biblContent,
-		Ref:        ref,
-		URN:        urn,
-		Quote:      quote,
-		XMLContext: context,
-		Filename:   filename,
-		DocCitURN:  citURN,
-	}
-}
-
-func (cp *CitationProcessor) ProcessCitation(biblMatch, xmlContent, filename string, extractQuotes bool, docID int) Citation {
-	cp.DocCitCountersMux.Lock()
-	cp.DocCitCounters[docID]++
-	citationNum := cp.DocCitCounters[docID]
-	cp.DocCitCountersMux.Unlock()
-
-	citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
-
-	// Extract n attribute
-	nAttr := cp.extractAttribute(biblMatch, "n")
-
-	// Extract bibl content
-	biblContent := cp.extractBiblContent(biblMatch)
-
-	// Extract quote (look for quote element after bibl) - only if requested
-	var quote string
-	if extractQuotes {
-		quote = cp.extractQuote(xmlContent, biblMatch)
-	}
-
-	// Extract context (500 chars before and after)
-	context := cp.extractContext(xmlContent, biblMatch, 500)
-
-	// Get standardized reference
-	ref := cp.Resolver.GetRef(nAttr, biblContent)
-
-	// Resolve to URN
-	urn := ""
-	if ref != "" {
-		urn = cp.Resolver.GetURN(ref, context, filename)
-	}
-
-	return Citation{
-		NAttrib:    nAttr,
-		Bibl:       biblContent,
-		Ref:        ref,
-		URN:        urn,
-		Quote:      quote,
-		XMLContext: context,
-		Filename:   filename,
-		DocCitURN:  citURN,
-	}
-}
-
-func (cp *CitationProcessor) extractAttribute(element, attrName string) string {
-	pattern := fmt.Sprintf(`%s="([^"]*)"`, attrName)
-	re := regexp.MustCompile(pattern)
-	match := re.FindStringSubmatch(element)
-	if len(match) > 1 {
-		return match[1]
-	}
-	return ""
-}
-
-func (cp *CitationProcessor) extractBiblContent(biblElement string) string {
-	re := regexp.MustCompile(`(?s)<bibl[^>]*>(.*?)</bibl>`)
-	match := re.FindStringSubmatch(biblElement)
-	if len(match) > 1 {
-		return strings.TrimSpace(match[1])
-	}
-	return ""
-}
-
-func (cp *CitationProcessor) extractQuote(xmlContent, biblMatch string) string {
-	// Find position of bibl match in content
-	index := strings.Index(xmlContent, biblMatch)
-	if index == -1 {
-		return ""
-	}
-
-	// Look for quote element after bibl
-	afterBibl := xmlContent[index+len(biblMatch):]
-	quoteRegex := regexp.MustCompile(`(?s)<quote[^>]*>(.*?)</quote>`)
-	match := quoteRegex.FindStringSubmatch(afterBibl[:min(len(afterBibl), 200)])
-
-	if len(match) > 1 {
-		return strings.TrimSpace(match[1])
-	}
-	return ""
-}
-
-func (cp *CitationProcessor) extractContext(xmlContent, biblMatch string, contextSize int) string {
-	index := strings.Index(xmlContent, biblMatch)
-	if index == -1 {
-		return ""
-	}
-
-	start := max(0, index-contextSize)
-	end := min(len(xmlContent), index+len(biblMatch)+contextSize)
-
-	context := xmlContent[start:end]
-	// Clean up whitespace
-	context = regexp.MustCompile(`\s+`).ReplaceAllString(context, " ")
-	return strings.TrimSpace(context)
-}
 
 func (cp *CitationProcessor) WriteCitations(citations []Citation) error {
 	resolvedPath := filepath.Join(cp.Config.OutputDir, cp.Config.ResolvedFile)
@@ -575,88 +426,4 @@ func max(a, b int) int {
 		return a
 	}
 	return b
-}
-
-// extractAllCitationPatterns finds all citation patterns in any XML structure
-// This is a comprehensive approach that doesn't depend on specific XML hierarchy
-func (cp *CitationProcessor) extractAllCitationPatterns(xmlContent, filename string, docID int) []Citation {
-	var allCitations []Citation
-
-	// Pattern 1: Extract ALL <cit> elements anywhere in the document
-	citRegex := regexp.MustCompile(`(?s)<cit\b[^>]*>.*?</cit>`)
-	citMatches := citRegex.FindAllString(xmlContent, -1)
-
-	for _, citMatch := range citMatches {
-		citation := cp.processCitationTag(citMatch, xmlContent, filename, docID)
-		if citation.Bibl != "" {
-			allCitations = append(allCitations, citation)
-		}
-	}
-
-	// Pattern 2: Extract ALL standalone <bibl> elements (not within <cit>)
-	// First remove all <cit> containers to avoid double-counting
-	contentWithoutCit := citRegex.ReplaceAllString(xmlContent, "")
-	biblRegex := regexp.MustCompile(`(?s)<bibl\b[^>]*>.*?</bibl>`)
-	biblMatches := biblRegex.FindAllString(contentWithoutCit, -1)
-
-	for _, biblMatch := range biblMatches {
-		// Don't extract quotes for standalone <bibl> tags in default mode
-		citation := cp.ProcessCitation(biblMatch, xmlContent, filename, false, docID)
-		if citation.Bibl != "" {
-			allCitations = append(allCitations, citation)
-		}
-	}
-
-	// Pattern 3: Look for <ref> elements that might contain citations
-	// Be more selective - only include if they resolve to valid URNs
-	refRegex := regexp.MustCompile(`<ref\b[^>]*>([^<]+)</ref>`)
-	refMatches := refRegex.FindAllStringSubmatch(xmlContent, -1)
-
-	for _, match := range refMatches {
-		if len(match) >= 2 {
-			refContent := strings.TrimSpace(match[1])
-			// Only consider ref content that looks like a real citation (has author.work pattern)
-			if refContent != "" && regexp.MustCompile(`[A-Za-z]+\.\s*[A-Za-z]*\s*\d+`).MatchString(refContent) {
-				citation := cp.createCitationFromParts("", refContent, "", xmlContent, filename, docID)
-				if citation.Bibl != "" && citation.URN != "" {
-					allCitations = append(allCitations, citation)
-				}
-			}
-		}
-	}
-
-	return allCitations
-}
-
-// createCitationFromParts creates a Citation from individual components
-func (cp *CitationProcessor) createCitationFromParts(nAttr, biblContent, quote, xmlContent, filename string, docID int) Citation {
-	cp.DocCitCountersMux.Lock()
-	cp.DocCitCounters[docID]++
-	citationNum := cp.DocCitCounters[docID]
-	cp.DocCitCountersMux.Unlock()
-
-	citURN := fmt.Sprintf(":citations-%d.%d", docID, citationNum)
-
-	// Get reference string for URN resolution
-	ref := cp.Resolver.GetRef(nAttr, biblContent)
-
-	// Get URN if ref is valid
-	var urn string
-	if ref != "" {
-		urn = cp.Resolver.GetURN(ref, "", filename)
-	}
-
-	// Extract context around the citation
-	context := cp.extractContext(biblContent, xmlContent, 200)
-
-	return Citation{
-		NAttrib:    nAttr,
-		Bibl:       biblContent,
-		Ref:        ref,
-		URN:        urn,
-		Quote:      quote,
-		XMLContext: context,
-		Filename:   filename,
-		DocCitURN:  citURN,
-	}
 }
