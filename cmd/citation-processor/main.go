@@ -168,9 +168,9 @@ func (cp *CitationProcessor) processConcurrent(xmlFiles []string, maxWorkers int
 	// To track worker completion
 	var wg sync.WaitGroup
 
-	// Start writer goroutine with single writer to avoid race conditions
+	// Start router goroutine to route citations to resolved/unresolved files
 	writerDone := make(chan error, 1)
-	go cp.citationWriter(citations, writerDone)
+	go cp.routeCitations(citations, writerDone)
 
 	// Start worker pool
 	for w := 0; w < maxWorkers; w++ {
@@ -233,7 +233,7 @@ func (cp *CitationProcessor) fileWorker(jobs <-chan fileJob, citations chan<- Ci
 	}
 }
 
-func (cp *CitationProcessor) citationWriter(citations <-chan Citation, done chan<- error) {
+func (cp *CitationProcessor) routeCitations(citations <-chan Citation, done chan<- error) {
 	resolvedPath := filepath.Join(cp.Config.OutputDir, cp.Config.ResolvedFile)
 	unresolvedPath := filepath.Join(cp.Config.OutputDir, cp.Config.UnresolvedFile)
 
@@ -297,6 +297,9 @@ func (cp *CitationProcessor) ProcessXMLFile(filename string) error {
 }
 
 func (cp *CitationProcessor) ExtractCitations(xmlContent, filename string, docID int) []Citation {
+	// First, remove TEI header (sometimes contains metadata packaged in <bibl> tags)
+	xmlContent = stripTEIHeader(xmlContent)
+
 	var allCitations []Citation
 
 	if cp.Config.UseCitTags {
@@ -308,6 +311,12 @@ func (cp *CitationProcessor) ExtractCitations(xmlContent, filename string, docID
 	}
 
 	return allCitations
+}
+
+func stripTEIHeader(xmlContent string) string {
+	// Match <teiHeader> ... </teiHeader> (case-insensitive, dotall mode)
+	headerRegex := regexp.MustCompile(`(?si)<teiHeader[^>]*>.*?</teiHeader>`)
+	return headerRegex.ReplaceAllString(xmlContent, "")
 }
 
 // extractBiblTags extracts citations using <bibl> tags directly (original method)
