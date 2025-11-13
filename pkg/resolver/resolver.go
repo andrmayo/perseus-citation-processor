@@ -256,14 +256,9 @@ func (ur *URNResolver) GetURN(ref, context, filename string) string {
 	if ur.Data.IsSingleWorkAuthor(resolvedAuthor) {
 		// For single work authors, treat work field as part of passage if it looks like a book/section reference
 		if work != "" && ur.looksLikeBookReference(work) {
-			// Combine work and passage as location
-			fullPassage := work
-			if passage != "" {
-				fullPassage += "." + passage
-			}
-			return ur.handleSingleWorkAuthor(resolvedAuthor, fullPassage, ref)
+			return ur.handleSingleWorkAuthor(resolvedAuthor, ref)
 		} else if work == "" {
-			return ur.handleSingleWorkAuthor(resolvedAuthor, passage, ref)
+			return ur.handleSingleWorkAuthor(resolvedAuthor, ref)
 		}
 	}
 
@@ -469,7 +464,7 @@ func (ur *URNResolver) resolveAuthor(author, work string) string {
 	if val, exists := allAuthAbb[author]; exists {
 		if str, ok := val.(string); ok {
 			// If it's a function reference (like "_which_pliny"), use the resolver
-			if str == "_which_pliny" || str == "_which_seneca" || str == "_which_plato_or_plautus" {
+			if str == "_which_pliny" || str == "_which_seneca" || str == "_which_plato_or_plautus" || str == "_which_aristotle_or_aristophanes" {
 				return ur.Data.ResolveAuthorFunction(author, work)
 			}
 			return str
@@ -481,7 +476,7 @@ func (ur *URNResolver) resolveAuthor(author, work string) string {
 	return ""
 }
 
-func (ur *URNResolver) handleSingleWorkAuthor(author, passage, originalRef string) string {
+func (ur *URNResolver) handleSingleWorkAuthor(author, originalRef string) string {
 	allAuthURNs := ur.Data.GetAllAuthURNs()
 	authURN, exists := allAuthURNs[author]
 	if !exists {

@@ -386,6 +386,34 @@ func (cd *ComprehensiveData) ResolveAuthorFunction(abbrev, work string) string {
 			}
 		}
 		return "plato"
+	case "arist.":
+		// Check Aristotle's works
+		if cd.Greek.WorkURNs["aristotle"] != nil {
+			if _, exists := cd.Greek.WorkURNs["aristotle"][work]; exists {
+				return "aristotle"
+			}
+			// Check abbreviations
+			for title := range cd.Greek.WorkURNs["aristotle"] {
+				abbrevs := GenerateWorkAbbreviations(title)
+				if slices.Contains(abbrevs, work) {
+					return "aristotle"
+				}
+			}
+		}
+		// Check Aristophanes' works
+		if cd.Greek.WorkURNs["aristophanes"] != nil {
+			if _, exists := cd.Greek.WorkURNs["aristophanes"][work]; exists {
+				return "aristophanes"
+			}
+			// Check abbreviations
+			for title := range cd.Greek.WorkURNs["aristophanes"] {
+				abbrevs := GenerateWorkAbbreviations(title)
+				if slices.Contains(abbrevs, work) {
+					return "aristophanes"
+				}
+			}
+		}
+		return "aristotle" // default to Aristotle as he's more commonly cited
 	case "plin.", "pliny":
 		// Check pliny_senior works
 		if cd.Latin.WorkURNs["pliny_senior"] != nil {
