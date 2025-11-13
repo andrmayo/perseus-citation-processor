@@ -12,6 +12,7 @@
     "apoll. rh.": "apollonius, rhodius",
     "apoll. rhod.": "apollonius, rhodius",
     "apollod.": "apollodorus",
+    "apollon.": "apollonius, rhodius",
     "app.": "appian",
     "appianus": "appian",
     "arist.": "_which_aristotle_or_aristophanes",
@@ -32,6 +33,7 @@
     "diog. laert.": "diogenes",
     "d.l.": "diogenes",
     "dion. hal.": "dionysius",
+    "dionys.": "dionysius",
     "dionysius of halicarnassus": "dionysius",
     "dionys. periegetes": "dionysius periegetes",
     "eur.": "euripides",
@@ -43,6 +45,7 @@
     "harpocrat.": "harpocration",
     "hdt.": "herodotus",
     "her.": "herodotus",
+    "herod.": "herodotus",
     "hes.": "hesiod",
     "hesych.": "hesychius",
     "hh": "homeric hymns",
@@ -55,6 +58,7 @@
     "lyc.": "lycophron",
     "lys.": "lysias",
     "menand.": "menander",
+    "mimnerm.": "mimnermus",
     "nt": "new testament",
     "n.t.": "new testament",
     "paus.": "pausanias",
@@ -526,6 +530,10 @@
       "sent": "tlg024",
       "sent.": "tlg024",
       "samia": "tlg029"
+    },
+    "mimnermus": {
+      "fragmenta": "tlg001",
+      "epigrammata": "tlg002"
     },
     "new testament": {
       "matthew": "tlg001",

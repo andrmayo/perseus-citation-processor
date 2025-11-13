@@ -1,20 +1,29 @@
 {
   "LATIN_AUTH_ABB": {
+    "acc.": "accius",
     "boe.": "boethius",
     "boet.": "boethius",
     "cat.": "catullus",
+    "catul.": "catullus",
     "catull.": "catullus",
     "caes.": "caesar",
+    "cels.": "celsus",
     "cic.": "cicero",
     "en.": "ennius",
     "enn.": "ennius",
+    "frontin.": "frontinus",
     "hor.": "horace",
+    "hygin.": "hyginus",
     "iuv.": "juvenal",
+    "jer.": "jerome",
     "juv.": "juvenal",
     "juven.": "juvenal",
     "liv.": "livy",
     "lucr.": "lucretius",
     "lucret.": "lucretius",
+    "macrob.": "macrobius",
+    "marcell.": "marcellinus",
+    "naev.": "naevius",
     "nep.": "cornelius nepos",
     "nepos": "cornelius nepos",
     "ov.": "ovid",
@@ -24,6 +33,7 @@
     "pliny": "_which_pliny",
     "prop.": "propertius",
     "propert.": "propertius",
+    "quint.": "quintilian",
     "sall.": "sallust",
     "sen.": "_which_seneca",
     "seneca": "_which_seneca",
@@ -35,12 +45,28 @@
     "ter.": "terence",
     "teren.": "terence",
     "tib.": "tibullus",
+    "tibull.": "tibullus",
     "val. flac.": "valerius flaccus",
     "val. flacc.": "valerius flaccus",
     "valer. flacc.": "valerius flaccus",
+    "varr.": "varro",
+    "vell.": "velleius",
     "verg.": "vergil"
   },
   "LATIN_WORK_URNS": {
+    "accius": {
+      "annales": "phi001",
+      "praetextae": "phi002",
+      "tragoediae": "phi003"
+    },
+    "augustus": {
+      "carmina": "phi001",
+      "epistulae": "phi004",
+      "letters": "phi004",
+      "opera historica": "phi006",
+      "res gestae": "phi007",
+      "orationes": "phi008"
+    },
     "boethius": {
       "consolation of philosophy": "stoa001",
       "de consolatione philosophiae": "stoa001",
@@ -61,6 +87,11 @@
       "civil war": "phi002",
       "fragmenta": "phi004",
       "carmina": "phi006"
+    },
+    "celsus": {
+      "de agricultura": "phi001",
+      "de medicina": "phi002",
+      "de rhetorica": "phi003"
     },
     "cicero": {
       "for publius quinctius": "phi001",
@@ -229,6 +260,13 @@
       "varia": "phi006",
       "incerta": "phi007"
     },
+    "frontinus": {
+      "strategematon": "phi001",
+      "de aquis urbis romae": "phi002",
+      "de agrorum qualitate": "phi003",
+      "de controversiis": "phi004",
+      "de limitibus": "phi005"
+    },
     "horace": {
       "odes": "phi001",
       "carmen saeculare": "phi002",
@@ -238,6 +276,18 @@
       "epistulae": "phi005",
       "ars poetica": "phi006"
     },
+    "jerome": {
+      "de viris inlustribus": "stoa003",
+      "epistolae": "stoa004",
+      "letters": "stoa004",
+      "in hieremiam prophetam libri sex": "stoa024",
+      "vita beatae fabiolae": "stoa061",
+      "vita sancti malchi": "stoa062",
+      "vita sancti hilaronis": "stoa063",
+      "vita sancti pauli": "stoa064",
+      "vita sanctae paula, romanae viduae": "stoa065",
+      "vitae sanctae marcellae": "stoa066"
+    },
     "livy": {
       "ab urbe condita": "phi001",
       "periochae": "phi002",
@@ -246,6 +296,10 @@
     },
     "lucretius": {
       "de rerum natura": "phi001"
+    },
+    "macrobius": {
+      "saturnalia": "stoa001",
+      "commentarii in somnium scipionis": "stoa002"
     },
     "ovid": {
       "amores": "phi001",
@@ -299,8 +353,17 @@
       "naturalis historia": "phi001",
       "natural history": "phi001"
     },
+    "pomponius": {
+      "tragoediae": "phi001",
+      "praetextae": "phi002"
+    },
     "propertius": {
       "elegies": "phi001"
+    },
+    "quintilian": {
+      "institutio oratoria": "phi001",
+      "declamationes minores": "phi002",
+      "declamationes maiores [sp.]": "phi003"
     },
     "sallust": {
       "catilinae coniuratio": "phi001",
@@ -406,6 +469,19 @@
       "elegiae": "phi001",
       "carmina tibulliana [sp.]": "phi002"
     },
+    "varro": {
+      "rerum rusticarum libri tres": "phi002",
+      "antiquitates rerum humanarum": "phi003",
+      "antiquitates rerum divinarum": "phi004",
+      "annales": "phi005",
+      "de gente populi romani": "phi006",
+      "de vita populi romani": "phi007",
+      "res urbanae. fragmenta": "phi008",
+      "menippae": "phi011",
+      "fragmenta grammatica": "phi014",
+      "frr. de historia litterarum": "phi015",
+      "incertae sedis fragmenta": "phi017"
+    },
     "vergil": {
       "eclogues": "phi001",
       "georgics": "phi002",
@@ -413,21 +489,35 @@
     }
   },
   "LATIN_AUTH_URNS": {
+    "accius": "urn:cts:latinLit:phi0400",
+    "augustus": "urn:cts:latinLit:phi1221",
+    "aquilius": "urn:cts:latinLit:phi0005",
     "boethius": "urn:cts:latinLit:stoa0058",
     "caesar": "urn:cts:latinLit:phi0448",
     "catullus": "urn:cts:latinLit:phi0472",
+    "celsus": "urn:cts:latinLit:phi0836",
     "cicero": "urn:cts:latinLit:phi0474",
     "cornelius nepos": "urn:cts:latinLit:phi0588",
     "ennius": "urn:cts:latinLit:phi0043",
+    "frontinus": "urn:cts:latinLit:phi1245",
     "horace": "urn:cts:latinLit:phi0893",
+    "hyginus": "urn:cts:latinLit:phi1263",
+    "jerome": "urn:cts:latinLit:stoa0162",
     "juvenal": "urn:cts:latinLit:phi1276",
     "ovid": "urns:cts:latinLit:phi0959",
     "livy": "urn:cts:latinLit:phi0914",
+    "lucan": "urn:cts:latinLit:phi0917",
     "lucretius": "urn:cts:latinLit:phi0550",
+    "macrobius": "urn:cts:latinLit:stoa0186",
+    "marcellinus": "urn:cts:latinLit:stoa0023",
+    "naevius": "urn:cts:latinLit:phi0587",
+    "novius": "urn:cts:latinLit:phi0592",
     "plautus": "urn:cts:latinLit:phi0119",
     "pliny_junior": "urn:cts:latinLit:phi1318",
     "pliny_senior": "urn:cts:latinLit:phi0978",
+    "pomponius": "urn:cts:latinLit:phi0987",
     "propertius": "urn:cts:latinLit:phi0620",
+    "quintilian": "urn:cts:latinLit:phi1002",
     "sallust": "urn:cts:latinLit:phi0631",
     "seneca_junior": "urn:cts:latinLit:phi1017",
     "seneca_senior": "urn:cts:latinLit:phi1014",
@@ -437,18 +527,25 @@
     "terence": "urn:cts:latinLit:phi0134",
     "tibullus": "urn:cts:latinLit:phi0660",
     "valerius flaccus": "urn:cts:latinLit:phi001",
+    "varro": "urn:cts:latinLit:phi0684",
+    "velleius": "urn:cts:latinLit:phi1044",
     "vergil": "urn:cts:latinLit:phi0690"
   },
   "LATIN_SINGLE_WORK_AUTHORS": [
+    "aquilius",
     "catullus",
+    "hyginus",
     "juvenal",
     "livy",
+    "lucan",
     "lucretius",
+    "marcellinus",
+    "naevius",
+    "novius",
     "pliny_senior",
     "propertius",
     "tibullus",
-    "valerius flaccus"
-  ],
-  "_which_pliny_function": "def _which_pliny(work: str) -> Optional[str]:\n    for pliny in (\"pliny_junior\", \"pliny_senior\"):\n        if LATIN_WORK_URNS[pliny].get(work):\n            return pliny\n    return",
-  "_which_seneca_function": "def _which_seneca(work: str) -> Optional[str]:\n    for seneca in (\"seneca_junior\", \"seneca_senior\"):\n        if LATIN_WORK_URNS[seneca].get(work):\n            return seneca\n    return"
+    "valerius flaccus",
+    "velleius"
+  ]
 }
