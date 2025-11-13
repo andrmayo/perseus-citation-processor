@@ -16,6 +16,7 @@
     "appianus": "appian",
     "aristoph.": "aristophanes",
     "aristot.": "aristotle",
+    "arr.": "arrian",
     "athen.": "athenaeus",
     "callim.": "callimachus",
     "dem.": "demosthenes",
@@ -227,6 +228,16 @@
       "de plantis alt": "tlg051x02",
       "physicorum libri septimi textus alter": "tlg054",
       "epigrammata demonstrativa": "tlgX04"
+    },
+    "arrian": {
+      "anab.": "tlg001",
+      "anabasis": "tlg001",
+      "indica": "tlg002",
+      "cynegeticus": "tlg003",
+      "periplus ponti euxini": "tlg004",
+      "tactica": "tlg005",
+      "acies contra alanos": "tlg006",
+      "fragmenta historica": "tlg018"
     },
     "bion": {
       "epitaphius adonis": "tlg001",
@@ -853,6 +864,7 @@
     "appian": "urn:cts:greekLit:tlg0551",
     "aristophanes": "urn:cts:greekLit:tlg0019",
     "aristotle": "urn:cts:greekLit:tlg0086",
+    "arrian": "urn:cts:greekLit:tlg0074",
     "athenaeus": "urn:cts:greekLit:tlg0008",
     "bion": "urn:cts:greekLit:tlg0036",
     "callimachus": "urn:cts:greekLit:tlg0533",
