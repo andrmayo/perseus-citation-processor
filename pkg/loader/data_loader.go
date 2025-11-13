@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -353,29 +354,40 @@ func (cd *ComprehensiveData) IsSingleWorkAuthor(author string) bool {
 	return false
 }
 
-// ResolveLatinAuthorFunction handles special Latin author disambiguation
-func (cd *ComprehensiveData) ResolveLatinAuthorFunction(abbrev, work string) string {
-	value, exists := cd.Latin.AuthAbb[abbrev]
-	if !exists {
-		return ""
-	}
+func (cd *ComprehensiveData) ResolveAuthorFunction(abbrev, work string) string {
+	work = strings.ToLower(work)
 
-	// Handle function references for Pliny and Seneca
-	if valueStr, ok := value.(string); ok {
-		// If it's a function reference (like "_which_pliny"), don't return it directly
-		// but fall through to the switch statement below
-		if valueStr != "_which_pliny" && valueStr != "_which_seneca" {
-			return valueStr
-		}
-	}
-
-	// Handle function cases based on work title
 	switch abbrev {
+	case "pl.":
+		// Check Plato's works
+		if cd.Greek.WorkURNs["plato"] != nil {
+			if _, exists := cd.Greek.WorkURNs["plato"][work]; exists {
+				return "plato"
+			}
+			// check abbreviations
+			for title := range cd.Greek.WorkURNs["plato"] {
+				abbrevs := GenerateWorkAbbreviations(title)
+				if slices.Contains(abbrevs, work) {
+					return "plato"
+				}
+			}
+		}
+		// Check Plautus' works
+		if cd.Latin.WorkURNs["plautus"] != nil {
+			if _, exists := cd.Latin.WorkURNs["plautus"][work]; exists {
+				return "plautus"
+			}
+			// Check abbreviations
+			for title := range cd.Latin.WorkURNs["plautus"] {
+				abbrevs := GenerateWorkAbbreviations(title)
+				if slices.Contains(abbrevs, work) {
+					return "plautus"
+				}
+			}
+		}
+		return "plato"
 	case "plin.", "pliny":
-		// Check which Pliny based on work
-		work = strings.ToLower(work)
-
-		// Check pliny_senior works (exact match and abbreviations)
+		// Check pliny_senior works
 		if cd.Latin.WorkURNs["pliny_senior"] != nil {
 			if _, exists := cd.Latin.WorkURNs["pliny_senior"][work]; exists {
 				return "pliny_senior"
@@ -383,37 +395,27 @@ func (cd *ComprehensiveData) ResolveLatinAuthorFunction(abbrev, work string) str
 			// Check abbreviations
 			for title := range cd.Latin.WorkURNs["pliny_senior"] {
 				abbrevs := GenerateWorkAbbreviations(title)
-				for _, abbrev := range abbrevs {
-					if abbrev == work {
-						return "pliny_senior"
-					}
+				if slices.Contains(abbrevs, work) {
+					return "pliny_senior"
 				}
 			}
 		}
-
-		// Check pliny_junior works (exact match and abbreviations)
+		// check pliny_junior works
 		if cd.Latin.WorkURNs["pliny_junior"] != nil {
 			if _, exists := cd.Latin.WorkURNs["pliny_junior"][work]; exists {
 				return "pliny_junior"
 			}
-			// Check abbreviations
+			// check abbreviations
 			for title := range cd.Latin.WorkURNs["pliny_junior"] {
 				abbrevs := GenerateWorkAbbreviations(title)
-				for _, abbrev := range abbrevs {
-					if abbrev == work {
-						return "pliny_junior"
-					}
+				if slices.Contains(abbrevs, work) {
+					return "pliny_junior"
 				}
 			}
 		}
-
-		return "pliny_senior" // default
-
+		return "pliny_senior" // default for pliny
 	case "sen.", "seneca":
-		// Check which Seneca based on work
-		work = strings.ToLower(work)
-
-		// Check seneca_senior works (exact match and abbreviations)
+		// Check seneca_senior works
 		if cd.Latin.WorkURNs["seneca_senior"] != nil {
 			if _, exists := cd.Latin.WorkURNs["seneca_senior"][work]; exists {
 				return "seneca_senior"
@@ -421,33 +423,26 @@ func (cd *ComprehensiveData) ResolveLatinAuthorFunction(abbrev, work string) str
 			// Check abbreviations
 			for title := range cd.Latin.WorkURNs["seneca_senior"] {
 				abbrevs := GenerateWorkAbbreviations(title)
-				for _, abbrev := range abbrevs {
-					if abbrev == work {
-						return "seneca_senior"
-					}
+				if slices.Contains(abbrevs, work) {
+					return "seneca_senior"
 				}
 			}
 		}
-
-		// Check seneca_junior works (exact match and abbreviations)
+		// check seneca_junior works
 		if cd.Latin.WorkURNs["seneca_junior"] != nil {
 			if _, exists := cd.Latin.WorkURNs["seneca_junior"][work]; exists {
 				return "seneca_junior"
 			}
-			// Check abbreviations
+			// check abbreviations
 			for title := range cd.Latin.WorkURNs["seneca_junior"] {
 				abbrevs := GenerateWorkAbbreviations(title)
-				for _, abbrev := range abbrevs {
-					if abbrev == work {
-						return "seneca_junior"
-					}
+				if slices.Contains(abbrevs, work) {
+					return "seneca_junior"
 				}
 			}
 		}
-
-		return "seneca_junior" // default
+		return "seneca_junior" // default to Seneca the Younger
 	}
-
 	return ""
 }
 

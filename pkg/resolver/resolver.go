@@ -469,13 +469,13 @@ func (ur *URNResolver) resolveAuthor(author, work string) string {
 	if val, exists := allAuthAbb[author]; exists {
 		if str, ok := val.(string); ok {
 			// If it's a function reference (like "_which_pliny"), use the resolver
-			if str == "_which_pliny" || str == "_which_seneca" {
-				return ur.Data.ResolveLatinAuthorFunction(author, work)
+			if str == "_which_pliny" || str == "_which_seneca" || str == "_which_plato_or_plautus" {
+				return ur.Data.ResolveAuthorFunction(author, work)
 			}
 			return str
 		}
 		// Handle function cases (Pliny/Seneca disambiguation)
-		return ur.Data.ResolveLatinAuthorFunction(author, work)
+		return ur.Data.ResolveAuthorFunction(author, work)
 	}
 
 	return ""
