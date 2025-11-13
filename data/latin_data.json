@@ -1,5 +1,7 @@
 {
   "LATIN_AUTH_ABB": {
+    "boe.": "boethius",
+    "boet.": "boethius",
     "cat.": "catullus",
     "catull.": "catullus",
     "caes.": "caesar",
@@ -38,6 +40,21 @@
     "verg.": "vergil"
   },
   "LATIN_WORK_URNS": {
+    "boethius": {
+      "consolation of philosophy": "stoa001",
+      "de consolatione philosophiae": "stoa001",
+      "cons.": "stoa001",
+      "de instituione musica": "stoa002",
+      "quomodo substantiae in eo quod sint bonae sint cum non sint substanialia bona": "stoa003",
+      "de fide catholica": "stoa006",
+      "commentaria in porphyrium a se translatum": "stoa007",
+      "de instutione arithmetica": "stoa009",
+      "de geometria": "stoa014",
+      "commentarii in librum aristotelis de interpretatione": "stoa022",
+      "liber de persona et duabus naturis contra eutychen et nestorium": "stoa023",
+      "quomodo trinitas unus deus ac non tres dii (de trinitate)": "stoa025",
+      "utrum pater et filius ac spiritus sanctus de divinitate substantialiter praedicentur liber": "stoa028"
+    },
     "caesar": {
       "gallic war": "phi001",
       "civil war": "phi002",
@@ -373,6 +390,7 @@
     }
   },
   "LATIN_AUTH_URNS": {
+    "boethius": "urn:cts:latinLit:stoa0058",
     "caesar": "urn:cts:latinLit:phi0448",
     "catullus": "urn:cts:latinLit:phi0472",
     "cicero": "urn:cts:latinLit:phi0474",

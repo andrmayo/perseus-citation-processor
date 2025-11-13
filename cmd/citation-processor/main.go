@@ -241,7 +241,6 @@ func (cp *CitationProcessor) routeCitations(citations <-chan Citation, done chan
 		done <- err
 		return
 	}
-
 	defer resolvedFile.Close()
 
 	unresolvedFile, err := os.OpenFile(unresolvedPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -249,24 +248,26 @@ func (cp *CitationProcessor) routeCitations(citations <-chan Citation, done chan
 		done <- err
 		return
 	}
-
 	defer unresolvedFile.Close()
+
+	// Create JSON encoders with HTML escaping disabled for better readability
+	resolvedEncoder := json.NewEncoder(resolvedFile)
+	resolvedEncoder.SetEscapeHTML(false)
+
+	unresolvedEncoder := json.NewEncoder(unresolvedFile)
+	unresolvedEncoder.SetEscapeHTML(false)
 
 	// Now, with file handling and errors out of the way, process all citations from channel
 	for citation := range citations {
-		jsonData, err := json.Marshal(citation)
-		if err != nil {
-			log.Printf("Error marshaling citation: %v", err)
-			continue
-		}
-
 		if citation.URN != "" && citation.Ref != "" {
 			// Successful resolution
-			resolvedFile.Write(jsonData)
-			resolvedFile.WriteString("\n")
+			if err := resolvedEncoder.Encode(citation); err != nil {
+				log.Printf("Error encoding citation: %v", err)
+			}
 		} else {
-			unresolvedFile.Write(jsonData)
-			unresolvedFile.WriteString("\n")
+			if err := unresolvedEncoder.Encode(citation); err != nil {
+				log.Printf("Error encoding citation: %v", err)
+			}
 		}
 	}
 
@@ -357,20 +358,24 @@ func (cp *CitationProcessor) WriteCitations(citations []Citation) error {
 	}
 	defer unresolvedFile.Close()
 
-	for _, citation := range citations {
-		jsonData, err := json.Marshal(citation)
-		if err != nil {
-			continue
-		}
+	// Create JSON encoders with HTML escaping disabled for better readability
+	resolvedEncoder := json.NewEncoder(resolvedFile)
+	resolvedEncoder.SetEscapeHTML(false)
 
+	unresolvedEncoder := json.NewEncoder(unresolvedFile)
+	unresolvedEncoder.SetEscapeHTML(false)
+
+	for _, citation := range citations {
 		if citation.URN != "" && citation.Ref != "" {
 			// Successfully resolved
-			resolvedFile.Write(jsonData)
-			resolvedFile.WriteString("\n")
+			if err := resolvedEncoder.Encode(citation); err != nil {
+				log.Printf("Error encoding citation: %v", err)
+			}
 		} else {
 			// Failed to resolve
-			unresolvedFile.Write(jsonData)
-			unresolvedFile.WriteString("\n")
+			if err := unresolvedEncoder.Encode(citation); err != nil {
+				log.Printf("Error encoding citation: %v", err)
+			}
 		}
 	}
 
