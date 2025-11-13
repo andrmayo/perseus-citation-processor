@@ -10,11 +10,14 @@
     "curtius": {
       "verb.": "greek_verb",
       "etym.": "greek_etym"
+    },
+    "goodwin": {
+      "syntax": "syntax"
     }
   },
   "SCHOL_AUTH_URNS": {
     "bekker": "urn:cts:greekSchol:bekker",
-    "curtius": "urn:cts:greekSchol:curtius"
+    "curtius": "urn:cts:greekSchol:curtius",
+    "goodwin": "urn:cts:greekSchol:goodwin"
   }
 }
-

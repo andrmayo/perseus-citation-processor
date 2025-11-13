@@ -31,6 +31,7 @@
     "nep.": "cornelius nepos",
     "nepos": "cornelius nepos",
     "ov.": "ovid",
+    "pac.": "pacuvius",
     "petr.": "petronius",
     "petron.": "petronius",
     "pl.": "_which_plato_or_plautus",
@@ -52,12 +53,14 @@
     "teren.": "terence",
     "tib.": "tibullus",
     "tibull.": "tibullus",
+    "val. fl.": "valerius flaccus",
     "val. flac.": "valerius flaccus",
     "val. flacc.": "valerius flaccus",
     "valer. flacc.": "valerius flaccus",
     "varr.": "varro",
     "vell.": "velleius",
-    "verg.": "vergil"
+    "verg.": "vergil",
+    "vitr.": "vitruvius"
   },
   "LATIN_WORK_URNS": {
     "accius": {
@@ -340,6 +343,10 @@
       "halieutica [sp.]": "phi014",
       "consolatio ad liviam (epicedion drusi)": "phi015"
     },
+    "pacuvius": {
+      "praetextae": "phi001",
+      "tragoediae": "phi002"
+    },
     "plautus": {
       "amphitruo": "phi001",
       "asinaria": "phi002",
@@ -536,6 +543,7 @@
     "marcellinus": "urn:cts:latinLit:stoa0023",
     "naevius": "urn:cts:latinLit:phi0587",
     "novius": "urn:cts:latinLit:phi0592",
+    "pacuvius": "urn:cts:latinLit:phi0116",
     "petronius": "urn:cts:latinLit:phi0972",
     "plautus": "urn:cts:latinLit:phi0119",
     "pliny_junior": "urn:cts:latinLit:phi1318",
@@ -555,7 +563,8 @@
     "valerius flaccus": "urn:cts:latinLit:phi001",
     "varro": "urn:cts:latinLit:phi0684",
     "velleius": "urn:cts:latinLit:phi1044",
-    "vergil": "urn:cts:latinLit:phi0690"
+    "vergil": "urn:cts:latinLit:phi0690",
+    "vitruvius": "urn:cts:latinLit:phi1056"
   },
   "LATIN_SINGLE_WORK_AUTHORS": [
     "aquilius",
@@ -577,6 +586,7 @@
     "tibullus",
     "turpilius",
     "valerius flaccus",
-    "velleius"
+    "velleius",
+    "vitruvius"
   ]
 }

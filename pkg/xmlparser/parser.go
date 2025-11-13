@@ -3,6 +3,7 @@ package xmlparser
 import (
 	"encoding/xml"
 	"io"
+	"regexp"
 	"strings"
 )
 
@@ -43,10 +44,45 @@ func (ct *contextTracker) getContext() string {
 	return strings.Join(ct.buffer, "")
 }
 
+// preprocessXML removes custom entity references that would cause the XML parser to fail.
+// Standard XML entities (&lt;, &gt;, &amp;, &quot;, &apos;) are preserved.
+func preprocessXML(xmlContent string) string {
+	// Remove custom entity references like &responsibility;, &fund.Tufts;, etc.
+	// but preserve standard XML entities
+	standardEntities := map[string]bool{
+		"lt":   true,
+		"gt":   true,
+		"amp":  true,
+		"quot": true,
+		"apos": true,
+	}
+
+	// Match entity references like &foo; or &foo.bar;
+	re := regexp.MustCompile(`&([a-zA-Z][a-zA-Z0-9._-]*);`)
+
+	result := re.ReplaceAllStringFunc(xmlContent, func(match string) string {
+		// Extract entity name from &name;
+		entityName := match[1 : len(match)-1]
+
+		// Keep standard XML entities
+		if standardEntities[entityName] {
+			return match
+		}
+
+		// Remove custom entities (replace with empty string)
+		return ""
+	})
+
+	return result
+}
+
 // ExtractCitations extracts all citations from TEI XML content
 // It properly handles <cit> elements with nested <bibl> and <quote>,
 // and standalone <bibl> elements outside of <cit> tags
 func ExtractCitations(xmlContent string) ([]Citation, error) {
+	// Preprocess XML to remove custom entity references
+	xmlContent = preprocessXML(xmlContent)
+
 	decoder := xml.NewDecoder(strings.NewReader(xmlContent))
 	var citations []Citation
 	var inTEIHeader bool
