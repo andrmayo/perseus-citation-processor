@@ -483,23 +483,37 @@ func (ur *URNResolver) handleSingleWorkAuthor(author, originalRef string) string
 		return ""
 	}
 
-	// Determine work prefix based on literature type
+	// Extract the author's prefix from their URN (e.g., tlg0020, phi0550, stoa0121)
+	// and construct work URN as prefix001 (e.g., tlg001, phi001, stoa001)
 	var workURN string
-	if strings.Contains(authURN, "greekLit") || strings.Contains(authURN, "greekSchol") {
-		workURN = "tlg001"
-	} else if strings.Contains(authURN, "latinLit") {
-		workURN = "phi001"
-	} else if strings.Contains(authURN, "englishLit") {
-		workURN = "eng001"
+
+	// Extract the last component after the final colon
+	// e.g., "urn:cts:greekLit:tlg0020" -> "tlg0020"
+	parts := strings.Split(authURN, ":")
+	if len(parts) > 0 {
+		authorPrefix := parts[len(parts)-1]
+
+		// Extract the alphabetic prefix (tlg, phi, stoa, etc.)
+		// by removing trailing digits
+		re := regexp.MustCompile(`^([a-zA-Z]+)\d+$`)
+		if matches := re.FindStringSubmatch(authorPrefix); len(matches) > 1 {
+			prefix := matches[1] // e.g., "tlg", "phi", "stoa"
+			workURN = prefix + "001"
+		} else {
+			// Fallback if pattern doesn't match
+			workURN = "tlg001"
+		}
 	} else {
-		workURN = "tlg001" // default to Greek
+		// Fallback if URN format unexpected
+		workURN = "tlg001"
 	}
+
 	suffix := ur.determineLiteratureSuffix(authURN)
 
 	// Extract numeric parts for location
 	numerics := []string{}
-	parts := regexp.MustCompile(`[\s,.:]`).Split(originalRef, -1)
-	for _, part := range parts {
+	refParts := regexp.MustCompile(`[\s,.:]`).Split(originalRef, -1)
+	for _, part := range refParts {
 		if regexp.MustCompile(`^\d+`).MatchString(part) {
 			numerics = append(numerics, part)
 		}
